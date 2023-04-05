@@ -2,6 +2,8 @@ import copy
 import importlib
 import os
 import torch
+import torch_xla    # todo: make conditional
+import torch_xla.core.xla_model as xm   # todo: make conditional
 from contextlib import contextmanager, ExitStack
 import warnings
 import inspect
@@ -210,6 +212,8 @@ class BenchmarkModel(metaclass=PostInitProcessor):
                     current_device_name = "cpu"
                 elif self.device == "mps":
                     current_device_name = "mps"
+                elif self.device == "xla":
+                    current_device_name = xm.xla_device()
 
                 if self.metadata and "devices" in self.metadata and current_device_name in self.metadata["devices"]:
                     self.batch_size = self.metadata["devices"][current_device_name]["eval_batch_size"]

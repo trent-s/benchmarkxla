@@ -21,7 +21,7 @@ This might be a good point for some sanity checking.
 Then try a simple xla  test such as:
 
 ```
-python benchmarkxla/runxla.py -d xla -t eval  resnet18
+python benchmarkxla/run_xla.py -d xla -t eval  resnet18
 ```
 
 If all goes well, you might see output like this:

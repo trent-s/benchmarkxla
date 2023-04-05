@@ -7,6 +7,6 @@ do
 	echo
 	echo Trying simple run on model ${model}
 	echo
-        python ${top}/runxla.py -d xla -t eval ${model}
+        python ${top}/run_xla.py -d xla -t eval ${model}
 	echo
 done

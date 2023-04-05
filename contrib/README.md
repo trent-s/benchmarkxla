@@ -21,8 +21,17 @@ This might be a good point for some sanity checking.
 Then try a simple xla  test such as:
 
 ```
-python ./runxla.py -d xla -t eval  resnet18
+python benchmarkxla/runxla.py -d xla -t eval  resnet18
 ```
+
+If all goes well, you might see output like this:
+
+```
+Running eval method from resnet18 on xla in eager mode with input batch size 8 and precision fp32.
+CPU Total Wall Time:   2.573 milliseconds
+CPU Peak Memory:                2.3271 GB
+```
+
 
 
 ## ongoing todo list

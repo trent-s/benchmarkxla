@@ -4,14 +4,14 @@ import logging
 
 torch._dynamo.config.verbose=True                # TORCHDYNAMO_VERBOSE=True
 torch._dynamo.config.output_code=True
-torch._dynamo.config.output_graph_code=True
+# torch._dynamo.config.output_graph_code=True   # fails with naive usage in xla container
 torch._dynamo.config.log_level = logging.DEBUG   # Better to set TORCH_COMPILE_DEBUG?
 
 import torch._functorch.config
 torch._functorch.config.debug_partitioner=True   # AOT_PARTITIONER_DEBUG=True
-torch._functorch.config.debug_graphs=True        # AOT_FX_GRAPHS=True
-torch._functorch.config.debug_joint=True         # AOT_FX_GRAPHS_JOINT=True
-torch._functorch.config.log_level=logging.DEBUG  # Automatically set to DEBUG if any of above env is set
+# torch._functorch.config.debug_graphs=True        # AOT_FX_GRAPHS=True # fails with naive usage in xla container
+# torch._functorch.config.debug_joint=True         # AOT_FX_GRAPHS_JOINT=True # fails with naive usage in xla container
+# torch._functorch.config.log_level=logging.DEBUG  # Automatically set to DEBUG if any of above env is set # fails with naive usage in xla container
 
 import torch._inductor.config
 torch._inductor.config.verbose_progress=True

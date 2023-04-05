@@ -6,6 +6,7 @@ This is a collection of open source benchmarks used to evaluate PyTorch performa
 
 
 This is work in progress. I strongly suggest carefully reviewing output for errors or warnings.
+At this point it is safe to assume everything is broken.
 
 ```
 docker run --gpus all -it  --rm   gcr.io/tpu-pytorch/xla:nightly_3.8_cuda_11.8

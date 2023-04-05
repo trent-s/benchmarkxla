@@ -32,6 +32,15 @@ CPU Total Wall Time:   2.573 milliseconds
 CPU Peak Memory:                2.3271 GB
 ```
 
+Then try something like this:
+```
+pytest test_bench_xla.py --ignore_machine_config -k "test_eval[resnet18"
+```
+
+output:
+```
+work in progress...
+```
 
 
 ## ongoing todo list

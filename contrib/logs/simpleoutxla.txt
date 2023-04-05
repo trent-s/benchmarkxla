@@ -1,0 +1,19 @@
+
+Trying simple run on model BERT_pytorch
+
+Running eval method from BERT_pytorch on xla in eager mode with input batch size 16 and precision fp32.
+
+
+Trying simple run on model vgg16
+
+Running eval method from vgg16 on xla in eager mode with input batch size 4 and precision fp32.
+CPU Total Wall Time:   1.527 milliseconds
+CPU Peak Memory:                2.8135 GB
+
+
+Trying simple run on model resnet18
+
+Running eval method from resnet18 on xla in eager mode with input batch size 8 and precision fp32.
+CPU Total Wall Time:   2.583 milliseconds
+CPU Peak Memory:                2.3184 GB
+

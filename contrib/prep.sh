@@ -31,8 +31,8 @@ cmake .. && make && make install
 cd 
 cd git
 
-apt-get update
-apt-get install ffmpeg
+apt-get -y update
+apt-get -y install ffmpeg
 pip install ffmpeg
 git clone https://github.com/pytorch/audio
 cd audio

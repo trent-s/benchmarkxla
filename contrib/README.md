@@ -11,7 +11,7 @@ At this point it is safe to assume everything is broken.
 ```
 docker run --gpus all -it  --rm   gcr.io/tpu-pytorch/xla:nightly_3.8_cuda_11.8
 cd
-mkdir -P git
+mkdir -p git
 cd git
 git clone https://github.com/trent-s/benchmarkxla.git
 sh benchmarkxla/contrib/prep.sh

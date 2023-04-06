@@ -8,7 +8,7 @@ export FORCE_CUDA=1
 # pip install https://storage.googleapis.com/tpu-pytorch/wheels/cuda/118/torch_xla-nightly-cp38-cp38-linux_x86_64.whl
 pip install pyyaml
 pip install 'numpy<1.23.0'
-
+pip install numba
 
 cd 
 mkdir -p git

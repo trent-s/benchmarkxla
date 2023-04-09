@@ -2,8 +2,11 @@ import copy
 import importlib
 import os
 import torch
-import torch_xla    # todo: make conditional
-import torch_xla.core.xla_model as xm   # todo: make conditional
+try:
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+Except ImportError:
+    xla_support = 0
 from contextlib import contextmanager, ExitStack
 import warnings
 import inspect

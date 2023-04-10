@@ -70,7 +70,7 @@ Legend:
 ```
 
 ## baseline testing
-See (prepbase.sh)[prepbase.sh] for commands to prepare for base line testing.
+See ./prepbase.sh for commands to prepare for baseline testing.
 
 ## ongoing todo list
 - Prepare code for upstream merge.

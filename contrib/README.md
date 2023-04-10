@@ -69,15 +69,29 @@ Legend:
 ========== 2 passed, 357 deselected, 2 warnings in 107.32s (0:01:47) ===========
 ```
 
+## baseline testing
+See (prepbase.sh)[prepbase.sh] for commands to prepare for base line testing.
 
 ## ongoing todo list
 - Prepare code for upstream merge.
 - Dive much deeper with profiling etc.
 
+## brief description of scripts
+- benchrun.sh - use ../test_bench_xla.py to run benchmarks for selected models using xla
+- benchrunbase.sh - use ../test_bench.py to run benchmarks for selected models using cuda and cpu
+- loggedpermute.py - a sample python script to create verbose output from pytorch internals
+- loggedrun.sh - a runner script to call loggedpermute.py to create verbose output from pytorch internals
+- prep.sh - setup script for using xla container to run these benchmarks using xla
+- prepbase.sh - setup script for using nightly pytorch container to run these benchmarks using cuda and cpu
+- simplerun.sh use - ../run_xla.py to run simple benchmarks for selected models using xla
+- simplerunbase.sh - use ../run.py to run simple benchmarks for selected models using cuda and cpu
+- logs/tabulate.sh - create table of raw benchrun output for use in excel
+
 ## References
 - https://github.com/pytorch/benchmark
 - https://pytorch.org/xla/master
 - https://github.com/pytorch/xla
+
 
 
 

@@ -71,12 +71,8 @@ Legend:
 
 
 ## ongoing todo list
-- Focus on evaluation tests for BERT_pytorch, vgg16, and resenet18 models.
-- Enable test.py and test_bench.py to work with hardcoded xla enablement.
-  - Currently, vggt16 and resnet18 seem to work with both test.py and test_bench.py... BERT_pytorch is a work in progress.
-- Enable all code to function correctly with and without xla support, so that key xla benchmark support can be merged upstream.
-- Look at additional models and additional tests.
-- Dive much deeper.
+- Prepare code for upstream merge.
+- Dive much deeper with profiling etc.
 
 ## References
 - https://github.com/pytorch/benchmark

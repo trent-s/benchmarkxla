@@ -2,7 +2,7 @@
 
 # setup script for base line case:
 # works with following docker container
-# docker run --gpus all -it  --m  ghcr.io/pytorch/pytorch-nightly:latest
+# docker run --gpus all -p 6006:6006 -it  --m  ghcr.io/pytorch/pytorch-nightly:latest
 
 
 apt-get update

@@ -16,6 +16,13 @@ import numpy as np
 import torch
 import torch.profiler as profiler
 
+try:
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    xla_support = 1
+except ImportError:
+    xla_support = 0
+
 from torchbenchmark import load_canary_model_by_name, load_model_by_name
 from torchbenchmark.util.experiment.metrics import get_peak_memory
 
@@ -23,7 +30,8 @@ WARMUP_ROUNDS = 3
 SUPPORT_DEVICE_LIST = ["cpu", "cuda"]
 if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
     SUPPORT_DEVICE_LIST.append("mps")
-SUPPORT_DEVICE_LIST.append("xla")   # todo: make this conditional
+if xla_support
+    SUPPORT_DEVICE_LIST.append("xla")
 SUPPORT_PROFILE_LIST = [
     "record_shapes",
     "profile_memory",
@@ -187,6 +195,8 @@ def profile_one_step(func, nwarmup=WARMUP_ROUNDS):
             ]
         elif args.device == 'cpu':
             activity_groups = [profiler.ProfilerActivity.CPU]
+        elif args.device == 'xla':
+            activity_groups = [profiler.ProfilerActivity.XLA]
 
     profile_opts = {}
     for opt in SUPPORT_PROFILE_LIST:

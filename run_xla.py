@@ -196,7 +196,8 @@ def profile_one_step(func, nwarmup=WARMUP_ROUNDS):
         elif args.device == 'cpu':
             activity_groups = [profiler.ProfilerActivity.CPU]
         elif args.device == 'xla':
-            activity_groups = [profiler.ProfilerActivity.XLA]
+            pass
+            # activity_groups = [profiler.ProfilerActivity.XLA] # this does not yet work...
 
     profile_opts = {}
     for opt in SUPPORT_PROFILE_LIST:

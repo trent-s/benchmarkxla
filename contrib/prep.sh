@@ -45,9 +45,10 @@ cd -
 
 # add some sanity testing
 
-pip install 'numpy<1.23.0,>1.22.0'
 
 cd benchmarkxla
 python install.py BERT_pytorch vgg16 resnet18 resnet50 resnext50_32x4d alexnet mobilenet_v2 mnasnet1_0 squeezenet1_1 timm_vision_transformer
+
+pip install 'numpy<1.23.0,>1.22.0'
 
 # now ready to run xla benchmarking with benchrun.sh or simplerun.sh

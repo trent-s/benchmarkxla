@@ -30,7 +30,7 @@ WARMUP_ROUNDS = 3
 SUPPORT_DEVICE_LIST = ["cpu", "cuda"]
 if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
     SUPPORT_DEVICE_LIST.append("mps")
-if xla_support
+if xla_support:
     SUPPORT_DEVICE_LIST.append("xla")
 SUPPORT_PROFILE_LIST = [
     "record_shapes",

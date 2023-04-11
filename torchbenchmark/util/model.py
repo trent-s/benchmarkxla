@@ -5,7 +5,7 @@ import torch
 try:
     import torch_xla
     import torch_xla.core.xla_model as xm
-Except ImportError:
+except ImportError:
     xla_support = 0
 from contextlib import contextmanager, ExitStack
 import warnings

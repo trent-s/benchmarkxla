@@ -71,6 +71,8 @@ Legend:
 ## suggested installation for baseline testing
 ```
 docker run --gpus all -p 6006:6006 -v ~/data:/data -it --rm ghcr.io/pytorch/pytorch-nightly:latest
+apt-get update
+apt-get -y install git
 cd
 mkdir -p git
 cd git
@@ -78,7 +80,6 @@ git clone https://github.com/trent-s/benchmarkxla.git
 sh benchmarkxla/contrib/prepbase.sh
 export GPU_NUM_DEVICES=1
 ```
-See ./prepbase.sh for commands to prepare for baseline testing.
 
 ## profiling tips
 Sample profiling on a standard baseline container:
@@ -97,7 +98,7 @@ Resulting json log files in `logs` directory can be visualized with chrome, tens
 
 To use tensorboard, start tensorboard on container:
 ```
-tensorboard --logdir=logs-xla --bind_all &
+tensorboard --logdir=logs --bind_all &
 ```
 
 Then view the interface by pointing a web browser at the machine running the container:

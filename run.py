@@ -235,7 +235,6 @@ def profile_one_step(func, nwarmup=WARMUP_ROUNDS):
                 if i >= nwarmup:
                     result_summary.append([(t1 - t0) / 1_000_000])
                 prof.step()
-
     prof.export_stacks(f"{args.profile_folder}/profiler_stacks_cuda.txt", metric="self_cuda_time_total")
     prof.export_stacks(f"{args.profile_folder}/profiler_stacks_cpu.txt", metric="self_cpu_time_total")
     if args.profile_eg and eg:

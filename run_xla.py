@@ -251,6 +251,8 @@ def profile_one_step(func, nwarmup=WARMUP_ROUNDS):
         eg.stop()
         eg.unregister_callback()
         print(f"Save Exeution Graph to : {args.profile_eg_folder}/{eg_file}")
+    prof.export_stacks(f"{args.profile_folder}/profiler_stacks_cuda.txt", "self_cuda_time_total")
+    prof.export_stacks(f"{args.profile_folder}/profiler_stacks_cpu.txt", "self_cpu_time_total")
     print(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total", row_limit=30))
     print(f"Saved TensorBoard Profiler traces to {args.profile_folder}.")
 

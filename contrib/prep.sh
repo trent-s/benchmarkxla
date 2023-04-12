@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # suggestion: this script works well with the following docker container:
-# docker run --gpus all -p 6006:6006 -v ~/data:/data -it  --rm   gcr.io/tpu-pytorch/xla:nightly_3.8_cuda_11.8
+# docker run --gpus all -p 6006:6006 -v ~/data:/data -it --rm  gcr.io/tpu-pytorch/xla:nightly_3.8_cuda_11.8
 
 set -x
 

@@ -2,7 +2,7 @@
 
 # setup script for base line case:
 # works with following docker container
-# docker run --gpus all -p 6006:6006 -v ~/data:/data -it  --m  ghcr.io/pytorch/pytorch-nightly:latest
+# docker run --gpus all -p 6006:6006 -v ~/data:/data -it --rm ghcr.io/pytorch/pytorch-nightly:latest
 
 export GPU_NUM_DEVICES=1
 export FORCE_CUDA=1

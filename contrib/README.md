@@ -2,8 +2,7 @@
 This is a collection of open source benchmarks used to evaluate PyTorch performance that is tweaked to run in an xla container.
 
 
-## Suggested installation
-
+## Suggested installation for running xla
 
 This is work in progress. I strongly suggest carefully reviewing output for errors or warnings.
 
@@ -69,7 +68,16 @@ Legend:
 ========== 2 passed, 357 deselected, 2 warnings in 107.32s (0:01:47) ===========
 ```
 
-## baseline testing
+## suggested installation for baseline testing
+```
+docker run --gpus all -p 6006:6006 -v ~/data:/data -it --rm ghcr.io/pytorch/pytorch-nightly:latest
+cd
+mkdir -p git
+cd git
+git clone https://github.com/trent-s/benchmarkxla.git
+sh benchmarkxla/contrib/prepbase.sh
+export GPU_NUM_DEVICES=1
+```
 See ./prepbase.sh for commands to prepare for baseline testing.
 
 ## profiling tips

@@ -8,19 +8,20 @@ This is a collection of open source benchmarks used to evaluate PyTorch performa
 This is work in progress. I strongly suggest carefully reviewing output for errors or warnings.
 
 ```
-docker run --gpus all -p6006;6006 -it --rm gcr.io/tpu-pytorch/xla:nightly_3.8_cuda_11.8
+docker run --gpus all -p6006:6006 -v ~/data:/data -it --rm gcr.io/tpu-pytorch/xla:nightly_3.8_cuda_11.8
 cd
 mkdir -p git
 cd git
 git clone https://github.com/trent-s/benchmarkxla.git
 sh benchmarkxla/contrib/prep.sh
+export GPU_NUM_DEVICES=1
 ```
 
 This might be a good point for some sanity checking.
-Then try a simple xla  test such as:
+Then try a simple xla test such as:
 
 ```
-python benchmarkxla/run_xla.py -d xla -t eval  resnet18
+python benchmarkxla/run_xla.py -d xla -t eval resnet18
 ```
 
 If all goes well, you might see output like this:
@@ -71,9 +72,34 @@ Legend:
 ## baseline testing
 See ./prepbase.sh for commands to prepare for baseline testing.
 
+## profiling tips
+Sample profiling on a standard baseline container:
+```
+export GPU_NUM_DEVICES=1
+python run.py squeezenet1_1 -d cuda -m eager -t eval --profile --profile-detailed
+```
+
+Sample profiling on a xla container:
+```
+export GPU_NUM_DEVICES=1
+python run_xla.py squeezenet1_1 -d xla -m eager -t eval --profile --profile-detailed
+```
+
+Resulting json log files in `logs` directory can be visualized with chrome, tensorboard, or other tools.
+
+To use tensorboard, start tensorboard on container:
+```
+tensorboard --logdir=logs-xla --bind_all &
+```
+
+Then view the interface by pointing a web browser at the machine running the container:
+e.g., `http://trlai2.sl.cloud9.ibm.com:6006`
+
+
 ## ongoing todo list
 - Prepare code for upstream merge.
 - Dive much deeper with profiling etc.
+
 
 ## brief description of scripts
 - benchrun.sh - use ../test_bench_xla.py to run benchmarks for selected models using xla
@@ -90,6 +116,8 @@ See ./prepbase.sh for commands to prepare for baseline testing.
 - https://github.com/pytorch/benchmark
 - https://pytorch.org/xla/master
 - https://github.com/pytorch/xla
+- https://pytorch.org/tutorials/beginner/profiler.html
+- https://cloud.google.com/tpu/docs/pytorch-xla-performance-profiling-tpu-vm
 
 
 

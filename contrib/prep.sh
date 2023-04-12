@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # suggestion: this script works well with the following docker container:
-# docker run --gpus all -p 6006:6006 -it  --rm   gcr.io/tpu-pytorch/xla:nightly_3.8_cuda_11.8
+# docker run --gpus all -p 6006:6006 -v ~/data:/data -it  --rm   gcr.io/tpu-pytorch/xla:nightly_3.8_cuda_11.8
 
 set -x
 
@@ -45,6 +45,9 @@ cd -
 
 # add some sanity testing
 
+pip install torch_tb_profiler
+pip install -U tensorboard-plugin-profile
+pip install tensorflow
 
 cd benchmarkxla
 python install.py BERT_pytorch vgg16 resnet18 resnet50 resnext50_32x4d alexnet mobilenet_v2 mnasnet1_0 squeezenet1_1 timm_vision_transformer
@@ -52,3 +55,6 @@ python install.py BERT_pytorch vgg16 resnet18 resnet50 resnext50_32x4d alexnet m
 pip install 'numpy<1.23.0,>1.22.0'
 
 # now ready to run xla benchmarking with benchrun.sh or simplerun.sh
+# When using GPU be sure to set export GPU_NUM_DEVICES=1
+# to use tensorboard run following command:
+# tensorboard --logdir=logs-xla --bind_all &

@@ -196,7 +196,10 @@ def profile_one_step(func, nwarmup=WARMUP_ROUNDS):
         elif args.device == 'cpu':
             activity_groups = [profiler.ProfilerActivity.CPU]
         elif args.device == 'xla':
-            pass
+            activity_groups = [
+                profiler.ProfilerActivity.CUDA,
+                profiler.ProfilerActivity.CPU,
+            ]
             # activity_groups = [profiler.ProfilerActivity.XLA] # this does not yet work...
 
     profile_opts = {}
@@ -247,12 +250,12 @@ def profile_one_step(func, nwarmup=WARMUP_ROUNDS):
                 if i >= nwarmup:
                     result_summary.append([(t1 - t0) / 1_000_000])
                 prof.step()
+    prof.export_stacks(f"{args.profile_folder}/profiler_stacks_cuda.txt", metric="self_cuda_time_total")
+    prof.export_stacks(f"{args.profile_folder}/profiler_stacks_cpu.txt", metric="self_cpu_time_total")
     if args.profile_eg and eg:
         eg.stop()
         eg.unregister_callback()
         print(f"Save Exeution Graph to : {args.profile_eg_folder}/{eg_file}")
-    prof.export_stacks(f"{args.profile_folder}/profiler_stacks_cuda.txt", "self_cuda_time_total")
-    prof.export_stacks(f"{args.profile_folder}/profiler_stacks_cpu.txt", "self_cpu_time_total")
     print(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total", row_limit=30))
     print(f"Saved TensorBoard Profiler traces to {args.profile_folder}.")
 

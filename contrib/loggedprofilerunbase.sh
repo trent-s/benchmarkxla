@@ -33,7 +33,7 @@ do
 	echo
 	echo Trying simple logged profile ${MODE} run ${TYPE} on model ${model}
 	echo
-       	python ${top}/run.py --vlog -m ${MODE} -d xla -t eval ${model} 2>&1 | tee /data/${TYPE}-${MODE}-${model}-out.txt
+	python ${top}/run.py --vlog -m ${MODE} -d cuda -t eval --profile --profile-detailed ${model} 2>&1 | tee /data/${TYPE}-${MODE}-${model}-out.txt
 	mv logs /data/${TYPE}-${MODE}-${model}-logs
 	echo
 	echo

@@ -10,7 +10,7 @@ do
 	echo
 	echo Trying simple run xla on model ${model}
 	echo
-        python ${top}/run_xla.py -d xla -t eval ${model}
+        python ${top}/run.py -d xla -t eval ${model}
 	echo
 	echo
 done

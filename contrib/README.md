@@ -20,7 +20,7 @@ This might be a good point for some sanity checking.
 Then try a simple xla test such as:
 
 ```
-python benchmarkxla/run_xla.py -d xla -t eval resnet18
+python benchmarkxla/runpy -d xla -t eval resnet18
 ```
 
 If all goes well, you might see output like this:
@@ -91,7 +91,7 @@ python run.py squeezenet1_1 -d cuda -m eager -t eval --profile --profile-detaile
 Sample profiling on a xla container:
 ```
 export GPU_NUM_DEVICES=1
-python run_xla.py squeezenet1_1 -d xla -m eager -t eval --profile --profile-detailed
+python run.py squeezenet1_1 -d xla -m eager -t eval --profile --profile-detailed
 ```
 
 Resulting json log files in `logs` directory can be visualized with chrome, tensorboard, or other tools.
@@ -117,7 +117,7 @@ e.g., `http://trlai2.sl.cloud9.ibm.com:6006`
 - loggedrun.sh - a runner script to call loggedpermute.py to create verbose output from pytorch internals
 - prep.sh - setup script for using xla container to run these benchmarks using xla
 - prepbase.sh - setup script for using nightly pytorch container to run these benchmarks using cuda and cpu
-- simplerun.sh use - ../run_xla.py to run simple benchmarks for selected models using xla
+- simplerun.sh use - ../run.py -d xla to run simple benchmarks for selected models using xla
 - simplerunbase.sh - use ../run.py to run simple benchmarks for selected models using cuda and cpu
 - logs/tabulate.sh - create table of raw benchrun output for use in excel
 

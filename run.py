@@ -16,6 +16,13 @@ import numpy as np
 import torch
 import torch.profiler as profiler
 
+try:
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    xla_support = 1
+except ImportError:
+    xla_support = 0
+
 from torchbenchmark import load_canary_model_by_name, load_model_by_name
 from torchbenchmark.util.experiment.metrics import get_peak_memory
 
@@ -23,6 +30,8 @@ WARMUP_ROUNDS = 3
 SUPPORT_DEVICE_LIST = ["cpu", "cuda"]
 if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
     SUPPORT_DEVICE_LIST.append("mps")
+if xla_support:
+    SUPPORT_DEVICE_LIST.append("xla")
 SUPPORT_PROFILE_LIST = [
     "record_shapes",
     "profile_memory",
@@ -186,6 +195,12 @@ def profile_one_step(func, nwarmup=WARMUP_ROUNDS):
             ]
         elif args.device == 'cpu':
             activity_groups = [profiler.ProfilerActivity.CPU]
+        elif args.device == 'xla':
+            activity_groups = [
+                profiler.ProfilerActivity.CUDA,
+                profiler.ProfilerActivity.CPU,
+            ]
+            # activity_groups = [profiler.ProfilerActivity.XLA] # this does not yet work...
 
     profile_opts = {}
     for opt in SUPPORT_PROFILE_LIST:
@@ -286,6 +301,7 @@ if __name__ == "__main__":
     parser.add_argument("--export-metrics", action="store_true",
                         help="Export all specified metrics records to a csv file. The default csv file name is [model_name]_all_metrics.csv.")
     parser.add_argument("--stress", type=float, default=0, help="Specify execution time (seconds) to stress devices.")
+    parser.add_argument("--vlog", action="store_true", help="Create verblose logging")
     parser.add_argument("--metrics", type=str,
                         help="Specify metrics [cpu_peak_mem,gpu_peak_mem,flops]to be collected. The metrics are separated by comma such as cpu_peak_mem,gpu_peak_mem.")
     parser.add_argument("--metrics-gpu-backend", choices=["dcgm", "default"], default="default", help="""Specify the backend [dcgm, default] to collect metrics. \nIn default mode, the latency(execution time) is collected by time.time_ns() and it is always enabled. Optionally,
@@ -295,6 +311,20 @@ if __name__ == "__main__":
     if args.cudastreams and not args.device == "cuda":
         print("cuda device required to use --cudastreams option!")
         exit(-1)
+
+    if args.vlog:
+        import logging
+        torch._dynamo.config.verbose=True
+        torch._dynamo.config.output_code=True
+        torch._dynamo.config.log_level = logging.DEBUG
+        import torch._functorch.config
+        torch._functorch.config.debug_partitioner=True
+        import torch._inductor.config
+        torch._inductor.config.verbose_progress=True
+        torch._inductor.config.debug=True
+        torch._inductor.config.trace.enabled=True
+        torch._inductor.config.trace.info_log=True
+        torch._inductor.config.trace.graph_diagram=True
 
     found = False
     Model = load_model_by_name(args.model)

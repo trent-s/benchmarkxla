@@ -14,6 +14,7 @@ import time
 
 import numpy as np
 import torch
+import torch._dynamo as dynamo
 import torch.profiler as profiler
 
 try:

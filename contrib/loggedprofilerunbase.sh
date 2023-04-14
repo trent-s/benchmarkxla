@@ -13,8 +13,9 @@ do
 	echo
 	echo Trying simple logged profile ${MODE} run ${TYPE} on model ${model}
 	echo
-        python ${top}/run.py --vlog -m ${MODE} -d cuda -t eval ${model} 2>&1 | tee /data/${TYPE}-${MODE}-${model}-out.txt
+        ${top}/contrib/loggedrun.sh ${top}/run.py --vlog -m ${MODE} -d cuda -t eval ${model} 2>&1 | tee /data/${TYPE}-${MODE}-${model}-out.txt
         mv logs /data/${TYPE}-${MODE}-${model}-logs
+        mv run.log /data/${TYPE}-${MODE}-${model}-run.log
 	echo
 	echo
     done

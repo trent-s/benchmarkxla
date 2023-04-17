@@ -90,6 +90,18 @@ class BenchmarkModel(metaclass=PostInitProcessor):
         self.determine_batch_size(batch_size)
         self.extra_args = extra_args
         self.opt = None
+        import logging
+        torch._dynamo.config.verbose=True
+        torch._dynamo.config.output_code=True
+        torch._dynamo.config.log_level = logging.DEBUG
+        import torch._functorch.config
+        torch._functorch.config.debug_partitioner=True
+        import torch._inductor.config
+        torch._inductor.config.verbose_progress=True
+        torch._inductor.config.debug=True
+        torch._inductor.config.trace.enabled=True
+        torch._inductor.config.trace.info_log=True
+        torch._inductor.config.trace.graph_diagram=True
         # contexts to run in the test function
         if self.test == "train":
             # In train test, there are run contexts that should only be applied for forward/backward/optimizer stage

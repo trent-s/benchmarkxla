@@ -35,7 +35,7 @@ do
 	echo
 	# python ${top}/run.py --vlog -m ${MODE} -d cuda -t eval --profile --profile-detailed ${model} 2>&1 | tee /data/${TYPE}-${MODE}-${model}-out.txt
 	python ${top}/run_logged.py -m ${MODE} -d cuda -t eval --profile --profile-detailed ${model} 2>&1 | tee /data/${TYPE}-${MODE}-${model}-out.txt
-	mv logs /data/${TYPE}-${MODE}-${model}-logs
+	mv ${top}/logs /data/${TYPE}-${MODE}-${model}-logs
 	echo
 	echo
     done

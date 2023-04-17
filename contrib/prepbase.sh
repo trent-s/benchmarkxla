@@ -10,7 +10,7 @@ export FORCE_CUDA=1
 apt-get update
 apt-get -y install git vim 
 cd
-mkdir git
+mkdir -p git
 cd git
 git clone https://github.com/trent-s/benchmarkxla.git
 cd benchmarkxla

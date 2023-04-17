@@ -376,6 +376,7 @@ class ModelTask(base_task.TaskBase):
 
     def invoke(self) -> None:
         self.worker.run("""
+            print(f"Initiating Logging in invoke()...")
             import logging
             torch._dynamo.config.verbose=True
             torch._dynamo.config.output_code=True
@@ -393,7 +394,7 @@ class ModelTask(base_task.TaskBase):
         """)
 
     def set_eval(self) -> None:
-        self.worker.run("import logging; torch._dynamo.config.verbose=True; torch._dynamo.config.output_code=True; torch._dynamo.config.log_level = logging.DEBUG; import torch._functorch.config; torch._functorch.config.debug_partitioner=True; import torch._inductor.config; torch._inductor.config.verbose_progress=True; torch._inductor.config.debug=True; torch._inductor.config.trace.enabled=True; torch._inductor.config.trace.info_log=True; torch._inductor.config.trace.graph_diagram=True; model.set_eval()")
+        self.worker.run("print(f"Initiating Logging in set_eval()...");import logging; torch._dynamo.config.verbose=True; torch._dynamo.config.output_code=True; torch._dynamo.config.log_level = logging.DEBUG; import torch._functorch.config; torch._functorch.config.debug_partitioner=True; import torch._inductor.config; torch._inductor.config.verbose_progress=True; torch._inductor.config.debug=True; torch._inductor.config.trace.enabled=True; torch._inductor.config.trace.info_log=True; torch._inductor.config.trace.graph_diagram=True; model.set_eval()")
 
     def extract_details_train(self) -> None:
         self._details.metadata["train_benchmark"] = self.worker.load_stmt("torch.backends.cudnn.benchmark")

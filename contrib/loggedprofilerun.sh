@@ -34,7 +34,7 @@ do
 	echo Trying simple logged profile ${MODE} run ${TYPE} on model ${model}
 	echo
         # python ${top}/run.py --vlog -m ${MODE} -d xla -t eval --profile --profile-detailed ${model} 2>&1 | tee /data/${TYPE}-${MODE}-${model}-out.txt
-       	python ${top}/run_logged.py  -m ${MODE} -d xla -t eval --profile --profile-detailed ${model} 2>&1 | tee /data/${TYPE}-${MODE}-${model}-out.txt
+       	python ${top}/run_logged.py  -m ${MODE} -d ${TYPE} -t eval --profile --profile-detailed ${model} 2>&1 | tee /data/${TYPE}-${MODE}-${model}-out.txt
 	mv ${top}/logs /data/${TYPE}-${MODE}-${model}-logs
 	echo
 	echo

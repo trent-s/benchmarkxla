@@ -393,8 +393,7 @@ class ModelTask(base_task.TaskBase):
         """)
 
     def set_eval(self) -> None:
-        self.worker.run("
-                import logging
+        self.worker.run("import logging
                 torch._dynamo.config.verbose=True
                 torch._dynamo.config.output_code=True
                 torch._dynamo.config.log_level = logging.DEBUG
@@ -406,8 +405,7 @@ class ModelTask(base_task.TaskBase):
                 torch._inductor.config.trace.enabled=True
                 torch._inductor.config.trace.info_log=True
                 torch._inductor.config.trace.graph_diagram=True
-                model.set_eval()
-                ")
+                model.set_eval()")
 
     def extract_details_train(self) -> None:
         self._details.metadata["train_benchmark"] = self.worker.load_stmt("torch.backends.cudnn.benchmark")

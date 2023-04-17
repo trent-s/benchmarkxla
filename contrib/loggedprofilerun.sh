@@ -23,6 +23,8 @@ export PYTORCH_JIT_STATS=True
 export GPU_NUM_DEVICES=1
 export FORCE_CUDA=1
 export TYPE=xla
+export TYPE=cpu
+export TYPE=cuda
 
 top=$(dirname "$0")/..
 
@@ -35,7 +37,7 @@ do
 	echo
         # python ${top}/run.py --vlog -m ${MODE} -d xla -t eval --profile --profile-detailed ${model} 2>&1 | tee /data/${TYPE}-${MODE}-${model}-out.txt
        	python ${top}/run_logged.py  -m ${MODE} -d ${TYPE} -t eval --profile --profile-detailed ${model} 2>&1 | tee /data/${TYPE}-${MODE}-${model}-out.txt
-	mv ${top}/logs /data/${TYPE}-${MODE}-${model}-logs
+	mv logs /data/${TYPE}-${MODE}-${model}-logs
 	echo
 	echo
     done

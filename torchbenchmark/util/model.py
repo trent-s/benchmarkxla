@@ -7,6 +7,7 @@ try:
     import torch_xla.core.xla_model as xm
 except ImportError:
     xla_support = 0
+import torch._dynamo;
 import logging
 torch._dynamo.config.verbose=True
 torch._dynamo.config.output_code=True

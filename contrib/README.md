@@ -111,14 +111,12 @@ e.g., `http://trlai2.sl.cloud9.ibm.com:6006`
 
 
 ## brief description of scripts
-- benchrun.sh - use ../test_bench_xla.py to run benchmarks for selected models using xla
-- benchrunbase.sh - use ../test_bench.py to run benchmarks for selected models using cuda and cpu
+- benchrun.sh - use ../test_bench_xla.py to run benchmarks for selected models using xla, cuda, or cpu. See comments.
 - loggedpermute.py - a sample python script to create verbose output from pytorch internals
 - loggedrun.sh - a runner script to call loggedpermute.py to create verbose output from pytorch internals
 - prep.sh - setup script for using xla container to run these benchmarks using xla
 - prepbase.sh - setup script for using nightly pytorch container to run these benchmarks using cuda and cpu
-- simplerun.sh use - ../run.py -d xla to run simple benchmarks for selected models using xla
-- simplerunbase.sh - use ../run.py to run simple benchmarks for selected models using cuda and cpu
+- simplerun.sh use - ../run.py -d xla to run simple benchmarks for selected models using xla, cuda, or cpu. See comments.
 - logs/tabulate.sh - create table of raw benchrun output for use in excel
 
 ## References

@@ -23,8 +23,8 @@ export PYTORCH_JIT_STATS=True
 export GPU_NUM_DEVICES=1
 export FORCE_CUDA=1
 export TYPE=xla
-export TYPE=cpu
-export TYPE=cuda
+# export TYPE=cpu
+# export TYPE=cuda
 
 top=$(dirname "$0")/..
 

@@ -10,9 +10,13 @@ do
 	echo
 	echo Trying pytest bench on model ${model}
 	echo
-	pytest ${top}/test_bench.py --ignore_machine_config -k "test_eval[${model}-]"
+	pytest ${top}/test_bench.py --ignore_machine_config -k "test_eval[${model}-"
+#	pytest ${top}/test_bench.py --ignore_machine_config -k "test_eval[${model}-cuda-jit]"
+#	pytest ${top}/test_bench.py --ignore_machine_config -k "test_eval[${model}-cuda-eager]"
 #	pytest ${top}/test_bench.py --ignore_machine_config -k "test_eval[${model}-cpu-jit]"
-#	pytest ${top}/test_bench.py --ignore_machine_config -k "test_eval[${model}-xla-jit]"
+#	pytest ${top}/test_bench.py --ignore_machine_config -k "test_eval[${model}-cpu-eager]"
+#	pytest ${top}/test_bench_xla.py --ignore_machine_config -k "test_eval[${model}-xla-jit]"
+#	pytest ${top}/test_bench_xla.py --ignore_machine_config -k "test_eval[${model}-xla-eager]"
 	echo
 	echo
 done

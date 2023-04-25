@@ -71,6 +71,8 @@ Legend:
 ## suggested installation for baseline testing
 ```
 docker run --gpus all -p 6006:6006 -v ~/data:/data -it --rm ghcr.io/pytorch/pytorch-nightly:latest
+# if necessary: force installation of CPU capable pytorch
+# pip3 install numpy --pre torch --force-reinstall --index-url https://download.pytorch.org/whl/nightly/cu117
 apt-get update
 apt-get -y install git
 cd
@@ -78,7 +80,10 @@ mkdir -p git
 cd git
 git clone https://github.com/trent-s/benchmarkxla.git
 sh benchmarkxla/contrib/prepbase.sh
-export GPU_NUM_DEVICES=1
+# export GPU_NUM_DEVICES=1
+# sanity testing as needed:
+python -c "import torch; print(torch.__version__)"
+python -c "import torch; print (torch.torch.cuda.is_available())"
 ```
 
 ## profiling tips

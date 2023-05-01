@@ -18,7 +18,7 @@ from torchbenchmark import REPO_PATH
 from torchbenchmark.util.extra_args import check_correctness_p, parse_opt_args, apply_opt_args, \
                                            parse_decoration_args, apply_decoration_args, is_staged_train_test, \
                                            TEST_STAGE
-from torchbenchmark.util.env_check import set_random_seed, correctness_check, stableness_check, is_hf_model, warmup
+from torchbenchmark.util.env_check import set_random_seed, correctness_check, stableness_check, is_hf_model
 from torchbenchmark.util.fx_int8 import get_sub_module, prepare_sub_module, convert_sub_module
 
 class PostInitProcessor(type):
@@ -156,17 +156,10 @@ class BenchmarkModel(metaclass=PostInitProcessor):
                     self.set_optimizer(current_optimizer)
         # apply decoration args
         apply_decoration_args(self, self.dargs)
-        if should_check_correctness:
-            eager_latency = warmup(self)
         # apply optimization args
         if self.dynamo:
             from torchbenchmark.util.backends.torchdynamo import apply_torchdynamo_args
             apply_torchdynamo_args(self, self.opt_args, self.dargs.precision)
-            cache_entries = {}
-            from torch._inductor.utils import fresh_inductor_cache
-            fresh_inductor_cache(cache_entries)
-            opt_latency = warmup(self)
-            self.dynamo_compilation_time = (opt_latency - eager_latency)
         else:
             apply_opt_args(self, self.opt_args)
         if should_check_correctness:
@@ -215,20 +208,20 @@ class BenchmarkModel(metaclass=PostInitProcessor):
         self.batch_size = batch_size
         if not batch_size:
             self.batch_size = self.DEFAULT_TRAIN_BSIZE if self.test == "train" else self.DEFAULT_EVAL_BSIZE
-            # use the device suggestion on CUDA inference tests
-            if self.test == "eval":
-                if self.device == "cuda":
-                    current_device_name = torch.cuda.get_device_name()
-                    assert current_device_name, f"torch.cuda.get_device_name() returns None when device is set to cuda, please double check."
-                elif self.device == "cpu":
-                    current_device_name = "cpu"
-                elif self.device == "mps":
-                    current_device_name = "mps"
-                elif self.device == "xla":
-                    current_device_name = xm.xla_device()
-
-                if self.metadata and "devices" in self.metadata and current_device_name in self.metadata["devices"]:
-                    self.batch_size = self.metadata["devices"][current_device_name]["eval_batch_size"]
+            if self.device == "cuda":
+                current_device_name = torch.cuda.get_device_name()
+                assert current_device_name, f"torch.cuda.get_device_name() returns None when device is set to cuda, please double check."
+            elif self.device == "cpu":
+                current_device_name = "cpu"
+            elif self.device == "mps":
+                current_device_name = "mps"
+            elif self.device == "xla":
+                current_device_name = xm.xla_device()
+            # use the device suggestion on CUDA inference tests, key should be either eval_batch_size or train_batch_size
+            device_batch_size_key = f"{self.test}_batch_size"
+            if self.metadata and "devices" in self.metadata and current_device_name in self.metadata["devices"] \
+                             and device_batch_size_key in self.metadata["devices"][current_device_name]:
+                self.batch_size = self.metadata["devices"][current_device_name][device_batch_size_key]
             # If the model doesn't implement test or eval test
             # its DEFAULT_TRAIN_BSIZE or DEFAULT_EVAL_BSIZE will still be None
             if not self.batch_size:

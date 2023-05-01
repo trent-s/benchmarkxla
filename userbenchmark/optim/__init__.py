@@ -7,6 +7,7 @@ from torch.optim import Adadelta, Adagrad, Adam, AdamW, Adamax, ASGD, SGD, RAdam
 import torch.utils.benchmark as benchmark
 from userbenchmark.utils import REPO_PATH, add_path, dump_output, get_output_json
 import argparse
+import gc
 import sys
 import itertools
 import datetime
@@ -19,6 +20,7 @@ BM_NAME: str = 'optim'
 
 continue_on_error: bool = False
 run_on_subset: bool = False
+ignore_skips: bool = False
 
 MODEL_NAMES: List[str] = list_models()
 SUBSET_OF_MODEL_NAMES: List[str] = [
@@ -207,6 +209,32 @@ EXCLUSIONS: List[Dict[str, Any]] = [
     # SparseAdam does not support dense gradients
     {'optim': 'SparseAdam', 'model': m} for m in DENSE_MODELS
 ] + [
+    # DALL-E 2, timm_efficientdet, tacotron2 Not Supported on CPU
+    {'model': 'DALLE2_pytorch', 'device': 'cpu'},
+    {'model': 'tacotron2', 'device': 'cpu'},
+    {'model': 'timm_efficientdet', 'device': 'cpu'},
+    # FCOS train is not supported by upstream detectron2.
+    # See GH issue: https://github.com/facebookresearch/detectron2/issues/4369.
+    {'model': 'detectron2_fcos_r_50_fpn'},
+    # moco uses DDP and DistributedDataParallel/allgather requires cuda
+    {'model': 'moco', 'device': 'cpu'},
+    # pyhpc_equation_of_state and pyhpc_isoneutral_mixing have no parameters
+    {'model': 'pyhpc_equation_of_state'},
+    {'model': 'pyhpc_isoneutral_mixing'},
+    {'model': 'pyhpc_turbulent_kinetic_energy'},
+    # fused/capturable requires params to be floats on CUDA
+    {'defaults': ['fused'], 'device': 'cpu'},
+    {'defaults': ['capturable'], 'device': 'cpu'},
+] + [
+    # PT2 dynamo tracing for the for-loop implementation takes over 30s.
+    # This is known + not going to be improved anytime soon, see
+    # https://github.com/pytorch/torchdynamo/issues/1803#issuecomment-1336688894
+    # Run PT2 on for-loop implementations for only the subset of models. Skip everything else.
+    {'model': m, 'device': d, 'func_str': 'pt2_', 'defaults': [df]}
+    for d in DEVICES
+    for m in set(MODEL_NAMES) - set(SUBSET_OF_MODEL_NAMES)
+    for df in ['no_foreach', 'differentiable'] + ([] if d == 'cuda' else ['default', 'maximize', 'amsgrad, maximize'])
+] + [
     # torch.compile()'d optimizer.step() has too many arguments in C++
     # See GH issue: https://github.com/pytorch/pytorch/issues/97361
     {'model': m, 'device': 'cpu', 'func_str': 'pt2_', 'defaults': []} for m in [
@@ -243,24 +271,7 @@ EXCLUSIONS: List[Dict[str, Any]] = [
        'densenet121', 'fambench_xlmr', 'hf_Bart', 'hf_Bert_large', 'hf_GPT2_large', 'hf_Longformer',
        'hf_T5_base', 'hf_T5_large', 'moco'
     ] for df in ['no_foreach', 'differentiable']
-] + [
-    # DALL-E 2, timm_efficientdet, tacotron2 Not Supported on CPU
-    {'model': 'DALLE2_pytorch', 'device': 'cpu'},
-    {'model': 'tacotron2', 'device': 'cpu'},
-    {'model': 'timm_efficientdet', 'device': 'cpu'},
-    # FCOS train is not supported by upstream detectron2.
-    # See GH issue: https://github.com/facebookresearch/detectron2/issues/4369.
-    {'model': 'detectron2_fcos_r_50_fpn'},
-    # moco uses DDP and DistributedDataParallel/allgather requires cuda
-    {'model': 'moco', 'device': 'cpu'},
-    # pyhpc_equation_of_state and pyhpc_isoneutral_mixing have no parameters
-    {'model': 'pyhpc_equation_of_state'},
-    {'model': 'pyhpc_isoneutral_mixing'},
-    {'model': 'pyhpc_turbulent_kinetic_energy'},
-    # fused/capturable requires params to be floats on CUDA
-    {'defaults': ['fused'], 'device': 'cpu'},
-    {'defaults': ['capturable'], 'device': 'cpu'},
-] 
+]
 
 # Returns clones of params and not a generator.
 def _get_model_params(m) -> List[torch.nn.Parameter]:
@@ -349,12 +360,20 @@ def run_model(modelName, device, Optim, defaults, maybe_pt2_):
         pt2_description = '' if maybe_pt2_ == '' else '(pt2) '
 
         print(f'{datetime.datetime.now()}     {modelName}, {device}, {Optim}, {defaults_to_str(defaults)}, {maybe_pt2_}')
-        return benchmark.Timer(
+        r = benchmark.Timer(
             stmt=f'{maybe_pt2_}optimizer_step(optim)',
             globals={'optim': optim, 'optimizer_step': optimizer_step, 'pt2_optimizer_step': pt2_optimizer_step},
             sub_label=f'{modelName}, {optim.__class__.__name__}, {device}',
             description=pt2_description + defaults_to_str(defaults),
         ).blocked_autorange()
+
+        if maybe_pt2_:
+            # Clears the cache that dynamo had accumulated to prevent OOMs
+            # See https://github.com/pytorch/pytorch/issues/100264
+            torchdynamo.reset()
+            gc.collect()
+
+        return r
     except Exception as e: 
         if not continue_on_error:
             raise e
@@ -364,7 +383,8 @@ def run_model(modelName, device, Optim, defaults, maybe_pt2_):
         return None
 
 
-def run_benchmarks(optims: List[str], func_strs: List[str], models: List[str], devices: List[str], flags: List[str]) -> List[float]:
+def run_benchmarks(optims: List[str], func_strs: List[str], models: List[str], devices: List[str],
+                   flags: List[str]) -> List[torch.utils.benchmark.utils.common.Measurement]:
     results = []
     optim_cfgs = [(O, defaults) for (O, defaults) in OPTIMIZERS if O.__name__ in optims and all(f in defaults_to_str(defaults) for f in flags)]
 
@@ -373,7 +393,7 @@ def run_benchmarks(optims: List[str], func_strs: List[str], models: List[str], d
         optim_cfgs = [(O, defaults) for (O, defaults) in optim_cfgs if (all([x in ['foreach', 'fused', 'lr'] for x in defaults]))]
     
     for mn, d, (O, defaults), func_str in itertools.product(models, devices, optim_cfgs, func_strs):
-        if (is_excluded(mn, d, O.__name__, func_str, defaults)):
+        if (not ignore_skips and is_excluded(mn, d, O.__name__, func_str, defaults)):
             continue
         bm = run_model(mn, d, O, defaults, func_str)
         if bm is not None:
@@ -394,7 +414,8 @@ def parse_args(args: List[str]):
         nargs='*',
         default=FUNC_STRS,
         choices=FUNC_STRS,
-        help='What optimizer.step() function variations to benchmark'
+        help='What optimizer.step() function variations to benchmark. NOTE: there is an underscore ' +
+             'for "pt2_"!'
     )
     parser.add_argument(
         '--models', '-m',
@@ -437,6 +458,12 @@ def parse_args(args: List[str]):
         help='name of directory path in which to dump the metrics json, e.g., "./.userbenchmark/optim/tmp". ' +
              'If None, we will dump output the metrics json to "REPO_ROOT/.userbenchmark/optim".'
     )
+    parser.add_argument(
+        '--ignore-skips', '-i', action='store_true',
+        help='Runs ALL benchmarks ignoring any skips. This allows for easy testing of current skipped ' +
+             'benchmarks once one believes they should be fixed. Beware though! You may run into errors ' +
+             'that were previously hidden by the exclusions.'
+    )
     args = parser.parse_args(args)
     return args
 
@@ -450,11 +477,13 @@ def get_metrics(results: List[torch.utils.benchmark.utils.common.Measurement]) -
 
 def run(args: List[str]):
     args = parse_args(args)
-    global continue_on_error, run_on_subset
+    global continue_on_error, run_on_subset, ignore_skips
     continue_on_error = args.continue_on_error
     run_on_subset = args.subset
+    ignore_skips = args.ignore_skips
     target_dir = Path(args.output_dir) if args.output_dir is not None else None
-    target_dir.mkdir(exist_ok=True, parents=True)
+    if target_dir is not None:
+        target_dir.mkdir(exist_ok=True, parents=True)
 
     results = run_benchmarks(args.optims, args.funcs, args.models, args.devices, args.default_flags)
     metrics: Dict[str, float] = get_metrics(results) 

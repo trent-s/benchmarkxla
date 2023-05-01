@@ -71,7 +71,7 @@ Legend:
 ## suggested installation for baseline testing
 ```
 docker run --gpus all -p 6006:6006 -v ~/data:/data -it --rm ghcr.io/pytorch/pytorch-nightly:latest
-# if necessary: force installation of CPU capable pytorch
+# if necessary: force installation of GPU capable pytorch
 # pip3 install numpy --pre torch --force-reinstall --index-url https://download.pytorch.org/whl/nightly/cu117
 apt-get update
 apt-get -y install git
@@ -129,6 +129,7 @@ e.g., `http://trlai2.sl.cloud9.ibm.com:6006`
 - https://pytorch.org/xla/master
 - https://github.com/pytorch/xla
 - https://pytorch.org/tutorials/beginner/profiler.html
+- https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html
 - https://cloud.google.com/tpu/docs/pytorch-xla-performance-profiling-tpu-vm
 
 

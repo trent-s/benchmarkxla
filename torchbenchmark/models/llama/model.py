@@ -15,11 +15,11 @@ class ModelArgs:
     dim: int = 512
     n_layers: int = 8
     n_heads: int = 8
-    vocab_size: int = -1
+    vocab_size: int = 32000 # this is the max vocab size supported by sentencepiece
     multiple_of: int = 256  # make SwiGLU hidden layer size multiple of large power of 2
     norm_eps: float = 1e-5
 
-    max_batch_size: int = 32
+    max_batch_size: int = 32 # From the paper they use a batch size of 4M for training
     max_seq_len: int = 1024
 
     device: Optional[str] = None
@@ -121,8 +121,13 @@ class Attention(nn.Module):
         self.cache_k = self.cache_k.to(xq)
         self.cache_v = self.cache_v.to(xq)
 
-        self.cache_k[:bsz, start_pos : start_pos + seqlen] = xk
-        self.cache_v[:bsz, start_pos : start_pos + seqlen] = xv
+        with torch.no_grad():
+            # Modiying cache without no_grad causes the autograd engine to track
+            # the updates and leads to "RuntimeError: Trying to backward through
+            # the graph a second time"
+            # upstream PR - https://github.com/facebookresearch/llama/pull/304
+            self.cache_k[:bsz, start_pos : start_pos + seqlen] = xk
+            self.cache_v[:bsz, start_pos : start_pos + seqlen] = xv
 
         keys = self.cache_k[:bsz, : start_pos + seqlen]
         values = self.cache_v[:bsz, : start_pos + seqlen]
@@ -197,7 +202,7 @@ class Transformer(nn.Module):
         self.n_layers = params.n_layers
 
         self.tok_embeddings = nn.Embedding(
-            params.vocab_size + 1, params.dim,
+            params.vocab_size, params.dim,
         )
 
 
@@ -207,7 +212,7 @@ class Transformer(nn.Module):
 
         self.norm = RMSNorm(params.dim, eps=params.norm_eps)
         self.output = nn.Linear(
-            params.dim, params.vocab_size + 1, bias=False
+            params.dim, params.vocab_size, bias=False
         )
 
         self.freqs_cis = precompute_freqs_cis(

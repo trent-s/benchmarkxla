@@ -13,6 +13,7 @@ mkdir -p git
 cd git
 git clone https://github.com/trent-s/benchmarkxla.git
 sh benchmarkxla/contrib/prep.sh
+export PJRT_DEVICE=GPU
 export GPU_NUM_DEVICES=1
 ```
 
@@ -95,11 +96,12 @@ python run.py squeezenet1_1 -d cuda -m eager -t eval --profile --profile-detaile
 
 Sample profiling on a xla container:
 ```
+export PJRT_DEVICE=GPU
 export GPU_NUM_DEVICES=1
 python run.py squeezenet1_1 -d xla -m eager -t eval --profile --profile-detailed
 ```
 
-Resulting json log files in `logs` directory can be visualized with chrome, tensorboard, or other tools.
+Resulting json log files in `logs` directory can be visualized with chrome (e.g., http://tracing), tensorboard, or other tools.
 
 To use tensorboard, start tensorboard on container:
 ```
@@ -107,7 +109,7 @@ tensorboard --logdir=logs --bind_all &
 ```
 
 Then view the interface by pointing a web browser at the machine running the container:
-e.g., `http://trlai2.sl.cloud9.ibm.com:6006`
+e.g., `http://sut42.trl.ibm.com:6006`
 
 
 ## ongoing todo list

@@ -3,9 +3,10 @@ import sys
 from datetime import datetime, timedelta
 import time
 import json
+import yaml
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 
 REPO_PATH = Path(os.path.abspath(__file__)).parent.parent
 USERBENCHMARK_OUTPUT_PREFIX = ".userbenchmark"
@@ -58,26 +59,6 @@ def get_output_json(bm_name, metrics) -> Dict[str, Any]:
     }
 
 
-def dump_output(bm_name, output, target_dir: Path=None) -> None:
-    if target_dir is None:
-        target_dir = get_output_dir(bm_name)
-    fname = "metrics-{}.json".format(datetime.fromtimestamp(time.time()).strftime("%Y%m%d%H%M%S"))
-    full_fname = os.path.join(target_dir, fname)
-    with open(full_fname, 'w') as f:
-        json.dump(output, f, indent=4)
-
-
-def get_date_from_metrics(metrics_file: str) -> str:
-    datetime_obj = datetime.strptime(metrics_file, "metrics-%Y%m%d%H%M%S")
-    return datetime.strftime(datetime_obj, "%Y-%m-%d")
-
-
-def get_ub_name(metrics_file_path: str) -> str:
-    with open(metrics_file_path, "r") as mf:
-        metrics = json.load(mf)
-    return metrics["name"]
-
-
 def get_output_dir(bm_name) -> Path:
     current_dir = Path(os.path.dirname(os.path.abspath(__file__)))
     target_dir = current_dir.parent.joinpath(USERBENCHMARK_OUTPUT_PREFIX, bm_name)
@@ -85,12 +66,48 @@ def get_output_dir(bm_name) -> Path:
     return target_dir
 
 
+def get_default_output_json_path(bm_name: str, target_dir: Path=None) -> str:
+    if target_dir is None:
+        target_dir = get_output_dir(bm_name)
+    fname = "metrics-{}.json".format(datetime.fromtimestamp(time.time()).strftime("%Y%m%d%H%M%S"))
+    full_fname = os.path.join(target_dir, fname)
+    return full_fname
+
+
+def dump_output(bm_name: str, output: Any, target_dir: Path=None) -> None:
+    full_fname = get_default_output_json_path(bm_name, target_dir=target_dir)
+    with open(full_fname, 'w') as f:
+        json.dump(output, f, indent=4)
+
+
+def get_date_from_metrics(metrics_file: str) -> str:
+    assert metrics_file.startswith("metrics-") or metrics_file.startswith("regression-"), f"Unknown metrics or regression file name format: {metrics_file}"
+    # metrics_file usually looks like metrics-%Y%m%d%H%M%S or regression-%Y%m%d%H%M%S
+    stripped_filename = metrics_file.split("-")[1]
+    datetime_obj = datetime.strptime(stripped_filename, "%Y%m%d%H%M%S")
+    return datetime.strftime(datetime_obj, "%Y-%m-%d")
+
+
+def get_ub_name(metrics_file_path: str) -> str:
+    if metrics_file_path.endswith(".json"):
+        with open(metrics_file_path, "r") as mf:
+            metrics = json.load(mf)
+        return metrics["name"]
+    elif metrics_file_path.endswith(".yaml"):
+        with open(metrics_file_path, "r") as mf:
+            regression = yaml.safe_load(mf)
+        return regression["name"]
+    print(f"Unknown metrics or regression file name path: {metrics_file_path}")
+    exit(1)
+
+
 def get_date_from_metrics_s3_key(metrics_s3_key: str) -> datetime:
     metrics_s3_json_filename = metrics_s3_key.split('/')[-1]
-    return datetime.strptime(metrics_s3_json_filename, 'metrics-%Y%m%d%H%M%S.json')
+    return datetime.strptime(metrics_s3_json_filename, 'metrics-%Y%m%d%H%M%S.json') if metrics_s3_key.endswith('.json') \
+        else datetime.strptime(metrics_s3_json_filename, 'regression-%Y%m%d%H%M%S.yaml')
 
 
-def get_latest_jsons_in_s3_from_last_n_days(bm_name: str, platform_name: str, date: datetime, ndays: int=7, limit: int=100) -> List[str]:
+def get_latest_files_in_s3_from_last_n_days(bm_name: str, platform_name: str, date: datetime, cond: Callable, ndays: int=7, limit: int=100) -> List[str]:
     """Retrieves the most recent n day metrics json filenames from S3 before the given date, inclusive of that date.
        If fewer than n days are found, returns all found items without erroring, even if there were no items.
        Returns maximum 100 results by default. """
@@ -108,7 +125,7 @@ def get_latest_jsons_in_s3_from_last_n_days(bm_name: str, platform_name: str, da
 
         if s3.exists(None, current_directory):
             files = s3.list_directory(current_directory)
-            metric_jsons = [f for f in files if f.endswith('.json') and 'metrics' in f]
+            metric_jsons = [f for f in files if cond(f)]
             metric_jsons.sort(key=lambda x: get_date_from_metrics_s3_key(x), reverse=True)
             previous_json_files.extend(metric_jsons[:limit - len(previous_json_files)])
 

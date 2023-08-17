@@ -40,7 +40,9 @@ from torchbenchmark.util.experiment.metrics import get_model_flops, get_peak_mem
 
 
 if not hasattr(torch.version, "git_version"):
-    from pytorch.benchmark.fb.run_utils import trace_handler
+    from pytorch.benchmark.fb.run_utils import trace_handler, usage_report_logger
+else:
+    usage_report_logger = lambda: None
 
 
 WARMUP_ROUNDS = 3
@@ -394,19 +396,8 @@ if __name__ == "__main__":
         print("cuda device required to use --cudastreams option!")
         exit(-1)
 
-    if args.vlog:
-        import logging
-        torch._dynamo.config.verbose=True
-        torch._dynamo.config.output_code=True
-        torch._dynamo.config.log_level = logging.DEBUG
-        import torch._functorch.config
-        torch._functorch.config.debug_partitioner=True
-        import torch._inductor.config
-        torch._inductor.config.verbose_progress=True
-        torch._inductor.config.debug=True
-        torch._inductor.config.trace.enabled=True
-        torch._inductor.config.trace.info_log=True
-        torch._inductor.config.trace.graph_diagram=True
+    # Log the tool usage
+    usage_report_logger()
 
     found = False
     Model = None

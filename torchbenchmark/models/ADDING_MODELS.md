@@ -49,7 +49,7 @@ methods.
 
 ### Preparing install.py and dependencies
 Simply put, install.py should be a one stop shop to install all the dependencies
-for your model, __except torch, torchvision, torchtext__ which should be assumed to 
+for your model, __except torch, torchvision, torchaudio__ which should be assumed to 
 have been installed by an outsider (the benchmark CI).
 
 - Avoid pinning packages to specific versions with == without good reason, as the
@@ -62,7 +62,7 @@ the build steps from install.py.  Avoid getting too fancy trying to be cross-pla
 compatible (e.g., Windows/Mac/etc., or using package managers like yum/dnf) - if it's
 not easy to build, there may be easier models to target.
 
-[Example install.py](attention_is_all_you_need_pytorch/install.py)
+[Example install.py](BERT_pytorch/install.py)
 
 ### Mini-dataset
 By the time install.py script runs, a miniature version of the dataset is expected to be 
@@ -98,7 +98,7 @@ Important: be deliberate about support for cpu/gpu and jit/no-jit.  In the case 
 your model is instantiated in an unsupported configuration, the convention is to return
 a model object from \_\_init\_\_ but raise NotImplementedError() from all its methods.
 
-See the [BenchmarkModel API](https://github.com/pytorch/benchmark/blob/master/torchbenchmark/util/model.py) to get started. The [attention is all you need](attention_is_all_you_need_pytorch/__init__.py) benchmark can serve as a good example.
+See the [BenchmarkModel API](https://github.com/pytorch/benchmark/blob/master/torchbenchmark/util/model.py) to get started. The [BERT_pytorch](BERT_pytorch/__init__.py) benchmark can serve as a good example.
 
 ### JIT
 As an optional step, make whatever modifications necessary to the model code to enable it to script or trace.  If doing this,

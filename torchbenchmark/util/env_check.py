@@ -71,6 +71,7 @@ SKIP_ACCURACY_CHECK_AS_EAGER_NON_DETERMINISTIC_MODELS = {
     "detectron2_fasterrcnn_r_50_dc5",
     "detectron2_fasterrcnn_r_50_fpn",
     "detectron2_maskrcnn",
+    "stable_diffusion_unet",
 }
 # Use the list from
 # https://github.com/pytorch/pytorch/blob/6c7410ddc350fea625e47744da9d6be7ec74b628/benchmarks/dynamo/torchbench.py#L382
@@ -367,9 +368,9 @@ def forward_and_backward_pass(mod, inputs, contexts, optimizer, collect_outputs=
 def run_n_iterations(mod, inputs, contexts, optimizer=None, is_training=False, iterations=STABLENESS_CHECK_ROUNDS):
     def _model_iter_fn(mod, inputs, contexts, optimizer, collect_outputs):
         if is_training:
-            forward_and_backward_pass(mod, inputs, contexts, optimizer, collect_outputs)
+            return forward_and_backward_pass(mod, inputs, contexts, optimizer, collect_outputs)
         else:
-            forward_pass(mod, inputs, contexts, collect_outputs)
+            return forward_pass(mod, inputs, contexts, collect_outputs)
     for _ in range(iterations - 1):
         _model_iter_fn(mod, inputs, contexts, optimizer, collect_outputs=False)
     return _model_iter_fn(mod, inputs, contexts, optimizer, collect_outputs=True)

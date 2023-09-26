@@ -60,7 +60,7 @@ DEVICES: List[str] = ['cuda', 'cpu']
 
 OPTIM_NAMES = [o.__name__ for o in [Adadelta, Adagrad, Adam, AdamW, Adamax, ASGD, SGD, RAdam, Rprop, RMSprop, NAdam, SparseAdam]]
 
-FUNC_STRS = ['pt2_' , '']
+FUNC_STRS = ['']
 
 OPTIMIZERS = [
     (Adadelta, {}),
@@ -218,6 +218,8 @@ DENSE_MODELS = [
     'speech_transformer',
     'squeezenet1_1',
     'stable_diffusion',
+    'stable_diffusion_text_encoder',
+    'stable_diffusion_unet',
     'tacotron2',
     'timm_efficientdet',
     'timm_efficientnet',

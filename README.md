@@ -43,11 +43,35 @@ cd benchmark
 python install.py
 ```
 
+### Install torchbench as a library
+
+if you're interested in running torchbench as a library you can
+
+```bash
+python install.py
+pip install git+https://www.github.com:pytorch/benchmark.git
+```
+
+or 
+
+```bash
+python install.py
+pip install . # add -e for an editable installation
+```
+
+The above
+
+```python
+import torchbenchmark.models.densenet121
+model, example_inputs = torchbenchmark.models.densenet121.Model(test="eval", device="cuda", batch_size=1).get_module()
+model(*example_inputs)
+```
+
 ### Building From Source
 Note that when building PyTorch from source, torchvision and torchaudio must also be built from source to make sure the C APIs match.
 
-See detailed instructions to install torchvision [here](https://github.com/pytorch/vision) and torchaudio [here](https://github.com/pytorch/audio).
-Make sure to enable CUDA (by `FORCE_CUDA=1`) if using CUDA.
+See detailed instructions to install torchvision [here](https://github.com/pytorch/vision/blob/main/CONTRIBUTING.md) and torchaudio [here](https://github.com/pytorch/audio/blob/main/CONTRIBUTING.md).
+Make sure to enable CUDA (by `USE_CUDA=1`) if using CUDA.
 Then,
 ```
 git clone https://github.com/pytorch/benchmark
@@ -126,6 +150,27 @@ Sometimes you may want to just run train or eval on a particular model, e.g. for
 python run.py <model> [-d {cpu,cuda}] [-t {eval,train}] [--profile]
 ```
 Note: `<model>` can be a full, exact name, or a partial string match.
+
+### Using torchbench models as a library
+
+If you're interested in using torchbench as a suite of models you can test, the easiest way to integrate it into your code/ci/tests would be something like
+
+```python
+import torch
+import importlib 
+import sys
+
+# If your directory looks like this_file.py, benchmark/
+sys.path.append("benchmark")
+model_name = "torchbenchmark.models.stable_diffusion_text_encoder" # replace this by the name of the model you're working on
+module = importlib.import_module(model_name)
+
+benchmark_cls = getattr(module, "Model", None)
+benchmark = benchmark_cls(test="eval", device = "cuda") # test = train or eval device = cuda or cpu
+
+model, example = benchmark.get_module()
+model(*example)
+```
 
 ## Nightly CI runs
 

@@ -1,4 +1,3 @@
-
 import csv
 import os
 import statistics
@@ -7,8 +6,7 @@ from typing import Any, Callable, Generator, List, Optional
 import numpy
 import torch
 import triton
-from hammer.ops.triton.triton_matmul import triton_matmul as hstu_triton_matmul
-
+import triton.ops
 
 from torchbenchmark.util.triton_op import (
     BenchmarkOperator,
@@ -19,6 +17,13 @@ from torchbenchmark.util.triton_op import (
 
 from .data_io import parse_args, read_shapes_from_csv
 from .triton_matmul import matmul as triton_matmul
+
+try:
+    from hammer.ops.triton.triton_matmul import triton_matmul as hstu_triton_matmul
+
+    HAS_HAMMER = True
+except ImportError:
+    HAS_HAMMER = False
 
 
 BUILDIN_SHAPES = [
@@ -67,6 +72,11 @@ BUILDIN_SHAPES = [
     (4096, 4096, 4096, None),
 ]
 
+SPLIT_K_SHAPES = [
+    (m, k, m, None)
+    for m in [128 * i for i in range(1, 5)]
+    for k in [2048 * i for i in range(1, 9)]
+]
 
 class Operator(BenchmarkOperator):
     DEFAULT_METRICS = ["latency", "speedup", "accuracy"]
@@ -75,22 +85,29 @@ class Operator(BenchmarkOperator):
     def __init__(self, mode: str, device: str, extra_args: List[str] = []):
         super().__init__(mode=mode, device=device, extra_args=extra_args)
         if not self.extra_args:
-            self.DEFAULT_NUM_BATCH = len(BUILDIN_SHAPES)
             self.shapes = BUILDIN_SHAPES
         else:
             self.tbargs = parse_args(self.extra_args)
             if self.tbargs.input:
                 self.shapes = read_shapes_from_csv(self.tbargs.input)
+            elif self.tbargs.splitk:
+                self.shapes = SPLIT_K_SHAPES
             else:
                 self.shapes = [(self.tb_args.m, self.tbargs.k, self.tbargs.n)]
-            self.DEFAULT_NUM_BATCH = len(self.shapes)
+        self.dargs.num_batch = len(self.shapes)
 
     @register_benchmark()
-    def triton_matmul(self, a, b, bias) -> Callable:
+    def triton_tutorial_matmul(self, a, b, bias) -> Callable:
         if not bias == None:
             return lambda: triton_matmul(a, b) + bias
         else:
             return lambda: triton_matmul(a, b)
+
+    @register_benchmark(enabled=torch.version.cuda is not None)
+    def triton_ops_matmul(self, a, b, bias) -> Callable:
+        if bias is None:
+            return lambda: triton.ops.matmul(a, b)
+        return lambda: triton.ops.matmul(a, b, bias)
 
     @register_benchmark(baseline=True)
     def aten_matmul(self, a, b, bias) -> Callable:
@@ -99,7 +116,7 @@ class Operator(BenchmarkOperator):
         else:
             return lambda: torch.matmul(a, b)
 
-    @register_benchmark()
+    @register_benchmark(enabled=HAS_HAMMER)
     def hstu_triton_matmul(self, a, b, bias) -> Callable:
         if not bias == None:
             return lambda: hstu_triton_matmul(a, b) + bias
@@ -111,9 +128,7 @@ class Operator(BenchmarkOperator):
         a, w, bias = example_inputs
         m, k = a.size()
         k, n = w.size()
-        # computation intensity for the shape m, n, k
-        intensity = 1 / (1 / n + 1 / m + 1 / k)
-        return intensity
+        return (m, n, k)
 
     @register_metric()
     def gbps(
@@ -180,27 +195,29 @@ class Operator(BenchmarkOperator):
     def plot(self):
         @triton.testing.perf_report(
             triton.testing.Benchmark(
-                x_names=["density"],  # argument names to use as an x-axis for the plot
+                x_names=["m", "n", "k"],  # argument names to use as an x-axis for the plot
                 x_vals=self.output.x_vals,  # different possible values for `x_name`
                 line_arg="provider",  # argument name whose value corresponds to a different line in the plot
                 line_vals=[
                     "aten_matmul",
-                    "triton_matmul",
+                    "triton_tutorial_matmul",
+                    "triton_ops_matmul",
                     "hstu_triton_matmul",
                 ],  # possible values for `line_arg``
                 line_names=[
                     "ATen GEMM",
-                    "Triton GEMM",
+                    "Triton Tutorial GEMM",
+                    "triton.ops.matmul",
                     "HSTU Triton GEMM",
                 ],  # label name for the lines
-                styles=[("blue", "-"), ("green", "-"), ("red", "-")],  # line styles
+                styles=[("blue", "-"), ("green", "-"), ("red", "-"), ("yellow", "-")],  # line styles
                 ylabel="tflops",  # label name for the y-axis
                 plot_name="gemm-performance",  # name for the plot. Used also as a file name for saving the plot.
                 args={},  # values for function arguments not in `x_names` and `y_name`
             )
         )
-        def _plot(density, provider):
-            tflops = self.output.get_y_vals(density, provider, "tflops")
+        def _plot(m, n, k, provider):
+            tflops = self.output.get_y_vals((m, n, k), provider, "tflops")
             return tflops
 
         save_path = "/tmp/test_gemm"

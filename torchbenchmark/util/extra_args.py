@@ -94,7 +94,7 @@ def get_precision_default(model: "torchbenchmark.util.model.BenchmarkModel") -> 
 def parse_decoration_args(
     model: "torchbenchmark.util.model.BenchmarkModel", extra_args: List[str]
 ) -> Tuple[argparse.Namespace, List[str]]:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument(
         "--distributed",
         choices=["ddp", "ddp_no_static_graph", "fsdp"],
@@ -191,18 +191,18 @@ def apply_decoration_args(
 
             if is_staged_train_test(model):
                 model.add_context(
-                lambda: torch.cuda.amp.autocast(dtype=torch.float16),
-                stage=TEST_STAGE.FORWARD,
+                    lambda: torch.cuda.amp.autocast(dtype=torch.float16),
+                    stage=TEST_STAGE.FORWARD,
                 )
             else:
                 warnings.warn(
-                        "Usually models only want to enable AMP in forward path, so expected "
-                        "model to have staged train support. As the model do not support staged "
-                        "training, try to add context to TEST_STAGE.ALL."
-                        )
+                    "Usually models only want to enable AMP in forward path, so expected "
+                    "model to have staged train support. As the model do not support staged "
+                    "training, try to add context to TEST_STAGE.ALL."
+                )
                 model.add_context(
-                lambda: torch.cuda.amp.autocast(dtype=torch.float16),
-                stage=TEST_STAGE.ALL,
+                    lambda: torch.cuda.amp.autocast(dtype=torch.float16),
+                    stage=TEST_STAGE.ALL,
                 )
 
     elif dargs.precision == "amp_bf16":

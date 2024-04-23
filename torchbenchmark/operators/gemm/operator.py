@@ -17,7 +17,11 @@ from torchbenchmark.util.triton_op import (
 
 from .data_io import parse_args, read_shapes_from_csv
 from .triton_matmul import matmul as triton_matmul
+from .triton_matmul import matmul_kernel as triton_matmul_kernel
 
+import inspect
+import json
+from copy import deepcopy
 try:
     from hammer.ops.triton.triton_matmul import triton_matmul as hstu_triton_matmul
 
@@ -78,6 +82,7 @@ SPLIT_K_SHAPES = [
     for k in [2048 * i for i in range(1, 9)]
 ]
 
+
 class Operator(BenchmarkOperator):
     DEFAULT_METRICS = ["latency", "speedup", "accuracy"]
     DEFAULT_PRECISION = "fp16"
@@ -93,8 +98,10 @@ class Operator(BenchmarkOperator):
             elif self.tbargs.splitk:
                 self.shapes = SPLIT_K_SHAPES
             else:
-                self.shapes = [(self.tb_args.m, self.tbargs.k, self.tbargs.n)]
-        self.dargs.num_batch = len(self.shapes)
+                self.shapes = [
+                    (self.tbargs.m, self.tbargs.k, self.tbargs.n, self.tbargs.bias)
+                ]
+        self.dargs.num_batch = min(self.dargs.num_batch, len(self.shapes))
 
     @register_benchmark()
     def triton_tutorial_matmul(self, a, b, bias) -> Callable:
@@ -141,15 +148,17 @@ class Operator(BenchmarkOperator):
         return statistics.median(gbps)
 
     @register_metric(skip_baseline=True)
-    def xShape(
+    def best_config(
         self, fn_name: str, example_inputs: Any, metrics: BenchmarkOperatorMetrics
-    ) -> list[int]:
-        a, w, bias = example_inputs
-        m, k = a.size()
-        k, n = w.size()
-        if not bias == None:
-            return [m, k, n, bias.size()[0]]
-        return [m, k, n]
+    ) -> float:
+        if "triton_tutorial_matmul" in str(fn_name):
+            bconfig = triton_matmul_kernel.best_config
+            kwargs = deepcopy(bconfig.kwargs)
+            kwargs["num_stages"] = bconfig.num_stages
+            kwargs["num_warps"] = bconfig.num_warps
+            dumped_str = json.dumps(kwargs)
+            return dumped_str
+        return ""
 
     @register_metric()
     def tflops(
@@ -195,7 +204,11 @@ class Operator(BenchmarkOperator):
     def plot(self):
         @triton.testing.perf_report(
             triton.testing.Benchmark(
-                x_names=["m", "n", "k"],  # argument names to use as an x-axis for the plot
+                x_names=[
+                    "m",
+                    "n",
+                    "k",
+                ],  # argument names to use as an x-axis for the plot
                 x_vals=self.output.x_vals,  # different possible values for `x_name`
                 line_arg="provider",  # argument name whose value corresponds to a different line in the plot
                 line_vals=[
@@ -210,7 +223,12 @@ class Operator(BenchmarkOperator):
                     "triton.ops.matmul",
                     "HSTU Triton GEMM",
                 ],  # label name for the lines
-                styles=[("blue", "-"), ("green", "-"), ("red", "-"), ("yellow", "-")],  # line styles
+                styles=[
+                    ("blue", "-"),
+                    ("green", "-"),
+                    ("red", "-"),
+                    ("yellow", "-"),
+                ],  # line styles
                 ylabel="tflops",  # label name for the y-axis
                 plot_name="gemm-performance",  # name for the plot. Used also as a file name for saving the plot.
                 args={},  # values for function arguments not in `x_names` and `y_name`
@@ -225,4 +243,4 @@ class Operator(BenchmarkOperator):
         if not os.path.exists(save_path):
             os.mkdir(save_path)
 
-        _plot.run(show_plots=True, print_data=True, save_path="/tmp/test_gemm")
+        _plot.run(show_plots=True, print_data=True, save_path=save_path)

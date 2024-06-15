@@ -383,6 +383,12 @@ def parse_args(
         help="Specify one or multiple operator implementations to run."
     )
     parser.add_argument(
+        "--baseline",
+        type=str,
+        default=None,
+        help="Override default baseline."
+    )
+    parser.add_argument(
         "--num-inputs",
         type=int,
         help="Number of example inputs.",
@@ -451,6 +457,8 @@ class BenchmarkOperator(metaclass=PostInitProcessor):
             self.DEFAULT_METRICS,
             unprocessed_args
         )
+        if self.tb_args.baseline:
+            BASELINE_BENCHMARKS[self.name] = self.tb_args.baseline
         self.required_metrics = list(set(self.tb_args.metrics.split(",")))
         self._only = _split_params_by_comma(self.tb_args.only)
         self._input_id = self.tb_args.input_id
@@ -526,15 +534,15 @@ class BenchmarkOperator(metaclass=PostInitProcessor):
                         if self.name in ENABLED_BENCHMARKS
                         else []
                     )
-                    # Run the baseline first, if baseline exists
-                    baseline_name = (
-                        BASELINE_BENCHMARKS[self.name]
-                        if self.name in BASELINE_BENCHMARKS
-                        else None
-                    )
-                    if baseline_name and baseline_name in benchmarks:
-                        benchmarks.remove(baseline_name)
-                        benchmarks.insert(0, baseline_name)
+                # Run the baseline first, if baseline exists
+                baseline_name = (
+                    BASELINE_BENCHMARKS[self.name]
+                    if self.name in BASELINE_BENCHMARKS
+                    else None
+                )
+                if baseline_name and baseline_name in benchmarks:
+                    benchmarks.remove(baseline_name)
+                    benchmarks.insert(0, baseline_name)
 
                 # get metrics for for each registered benchmark
                 def _reduce_benchmarks(acc, bm_name: str):

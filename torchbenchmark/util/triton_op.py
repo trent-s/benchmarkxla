@@ -3,15 +3,19 @@ import copy
 import functools
 import gc
 import json
+import logging
 import os
 import random
+import shlex
+import tempfile
 import time
 import warnings
 from collections import OrderedDict
 from dataclasses import asdict, dataclass, fields, make_dataclass
 from enum import Enum
 from numbers import Number
-from typing import Any, Callable, Dict, Generator, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
 import numpy
 import tabulate
@@ -26,6 +30,8 @@ try:
     from tqdm import tqdm
 except ImportError:
     tqdm = None
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_WARMUP = 25
 DEFAULT_RUN_ITERS = 100
@@ -65,16 +71,31 @@ class Mode(Enum):
     FWD_NO_GRAD = "fwd_no_grad"
 
 
+class TimerContext:
+    def __init__(self, enabled=True):
+        self.enabled = enabled
+        self.elapsed_ms = None
+
+    def __enter__(self):
+        if self.enabled:
+            self._start_time = time.perf_counter()
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        if self.enabled:
+            end_time = time.perf_counter()
+            self.elapsed_ms = (end_time - self._start_time) * 1e3
+
+
 def do_bench_walltime(fn, warmup=25, rep=100):
     fn()
     torch.cuda.synchronize()
 
-    start_time = time.perf_counter()
-    for _ in range(5):
-        fn()
-    torch.cuda.synchronize()
-    end_time = time.perf_counter()
-    estimate_ms = (end_time - start_time) * 1e3 / 5
+    with TimerContext() as timer:
+        for _ in range(5):
+            fn()
+        torch.cuda.synchronize()
+    estimate_ms = timer.elapsed_ms / 5
 
     # compute number of warmup and repeat
     n_warmup = max(1, int(warmup / estimate_ms))
@@ -177,6 +198,8 @@ class BenchmarkOperatorResult:
         table = []
         # generate headers
         headers = [REGISTERED_X_VALS[self.op_name]]
+        if len(self.result) == 0:
+            return headers, table
         y_val = self.result[0][1]
         y_val_keys = list(y_val.keys())
         # move the baseline benchmark to the front of the list if exists
@@ -482,10 +505,13 @@ class BenchmarkOperator(metaclass=PostInitProcessor):
             f"Could not find benchmark {bm_func_name} registered in {self.name}. "
             f"Available benchmarks: {REGISTERED_BENCHMARKS[self.name].keys()}. "
         )
-        if isinstance(self.example_inputs, dict):
-            fwd_fn = fwd_fn_lambda(**self.example_inputs)
-        else:
-            fwd_fn = fwd_fn_lambda(*self.example_inputs)
+        with TimerContext(enabled=logger.level <= logging.INFO) as timer:
+            if isinstance(self.example_inputs, dict):
+                fwd_fn = fwd_fn_lambda(**self.example_inputs)
+            else:
+                fwd_fn = fwd_fn_lambda(*self.example_inputs)
+        logger.info("Took %.02fms to get benchmark function for %s", timer.elapsed_ms, bm_func_name)
+
         if self.mode == Mode.FWD:
             setattr(fwd_fn, "_name", bm_func_name)
             return fwd_fn
@@ -687,6 +713,9 @@ class BenchmarkOperator(metaclass=PostInitProcessor):
         except StopIteration:
             return None
 
+    def get_temp_path(self, path: Union[str, Path]) -> Path:
+        return Path(tempfile.gettempdir()) / "tritonbench" / self.name / Path(path)
+
     def _get_accuracy(self, fn: Callable, baseline_fn: Callable) -> bool:
         output = fn()
         baseline_output = baseline_fn()
@@ -866,7 +895,6 @@ class BenchmarkOperator(metaclass=PostInitProcessor):
         # collect the ncu trace
         import sys
         import subprocess
-        from pathlib import Path
 
         op_task_args = copy.deepcopy(sys.argv)
         for override_option in ["--only", "--input-id", "--num-inputs", "--metrics"]:
@@ -886,20 +914,25 @@ class BenchmarkOperator(metaclass=PostInitProcessor):
             ]
         )
         # Disable DCGM
-        try:
-            disable_dcgm = [
-                "sudo",
-                "dyno",
-                "dcgm_profiling",
-                "--mute=true",
-                "--duration=1000_s",
-            ]
-            subprocess.run(disable_dcgm, check=True)
-        except subprocess.SubprocessError:
+        disable_dyno_dcgm = [
+            "sudo",
+            "dyno",
+            "dcgm_profiling",
+            "--mute=true",
+            "--duration=100000_s",
+        ]
+        disable_dcgm_service = [
+            "sudo",
+            "systemctl",
+            "stop",
+            "nvidia-dcgm",
+        ]
+        if subprocess.run(disable_dyno_dcgm).returncode != 0 and \
+                subprocess.run(disable_dcgm_service).returncode != 0:
             warnings.warn(
-                "Cannot find dyno to disable DCGM. Proceed to collect NCU Trace."
+                "DCGM may not have been successfully disabled. Proceeding to collect NCU trace anyway..."
             )
-        ncu_output_dir = Path(f"/tmp/tritonbench_{self.name}_{fn_name}_{input_id}")
+        ncu_output_dir = self.get_temp_path(f"ncu_traces/{fn_name}_{input_id}")
         ncu_output_dir.mkdir(parents=True, exist_ok=True)
         ext = ".csv" if not replay else ".ncu-rep"
         ncu_output_file = ncu_output_dir.joinpath(f"ncu_output{ext}").resolve()
@@ -929,14 +962,17 @@ class BenchmarkOperator(metaclass=PostInitProcessor):
                 str(ncu_output_file.resolve()),
             ])
         ncu_args.extend(op_task_args)
-        subprocess.check_call(ncu_args)
+        logger.info("Running NCU: %s", shlex.join(ncu_args))
+        # Sometimes, `ncu --target-processes all` will fail with the message "Failed to connect to process". Setting
+        # CUDA_INJECTION64_PATH=none seems to fix this issue.
+        subprocess.check_call(ncu_args, env={**os.environ, "CUDA_INJECTION64_PATH": "none"})
         return str(ncu_output_file.resolve())
 
     def kineto_trace(self, input_id: int, fn: Callable) -> str:
         from pathlib import Path
         from torchbenchmark._components.kineto import do_bench_kineto
 
-        kineto_output_dir = Path(f"/tmp/tritonbench_{self.name}_{fn._name}_{input_id}")
+        kineto_output_dir = self.get_temp_path(f"kineto_traces/{fn._name}_{input_id}")
         kineto_output_dir.mkdir(parents=True, exist_ok=True)
         return do_bench_kineto(
             fn=fn,

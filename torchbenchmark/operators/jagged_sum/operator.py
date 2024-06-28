@@ -1,6 +1,7 @@
 import argparse
 import itertools
 import math
+import os
 import random
 from typing import Callable, Generator, List, Optional, Tuple
 
@@ -18,6 +19,8 @@ from torchbenchmark.util.triton_op import (
 from .kernels import (
     triton_jagged_sum_kernel_simple_fused_buffer_then_sum,
     triton_jagged_sum_kernel_simple_fused_sum_then_buffer,
+    triton_jagged_sum_kernel_variable_length_loop_buffer_then_sum,
+    triton_jagged_sum_kernel_variable_length_loop_sum_then_buffer,
 )
 
 seed = 16
@@ -26,7 +29,9 @@ torch.manual_seed(seed)
 
 GIGABYTES_PER_BYTE = 1e-6
 RANDOM_CHOICE_MARGIN = 0.3
-ABSOLUTE_TOLERANCE = 1e-3
+ABSOLUTE_TOLERANCE = 1e-4
+RELATIVE_TOLERANCE = 1e-3
+TENSOR_BYTES_LIMIT = 8 * 1e9  # allocate tensors no greater than 8GB
 
 
 def parse_op_args(args: List[str]):
@@ -54,8 +59,14 @@ def parse_op_args(args: List[str]):
     parser.add_argument(
         "--sum-then-buffer",
         type=int,  # 1: sum then buffer, 0: buffer then sum
-        default=1,
-        help="[Optional] For Triton kernels, determines whether to sum individual blocks then add to a buffer or add to a buffer then sum; 1: sum then buffer, 0: buffer then sum",
+        default=0,
+        help="[Optional] For Triton kernels, determines whether to sum individual blocks then add to a buffer or add to a buffer then sum; 1: sum then buffer, 0: buffer then sum; default 0",
+    )
+    parser.add_argument(
+        "--plot-benchmarks",
+        type=str,
+        default="all",
+        help="[Optional] Determines which benchmarks to plot: all, torch, triton",
     )
     return parser.parse_args(args)
 
@@ -85,6 +96,29 @@ def execute_kernel_simple_fused(x, max_seqlen, sum_then_buffer):
     return kernel_output
 
 
+def execute_kernel_variable_length_loop(x, sum_then_buffer):
+    B, M = x.shape[0], x.shape[2]
+    grid = lambda meta: ((len(x.offsets()) - 1) * triton.cdiv(M, meta["BLOCK_SIZE_M"]),)
+    kernel_output = torch.zeros((B, M), device=x.device)
+
+    if sum_then_buffer:
+        triton_jagged_sum_kernel_variable_length_loop_sum_then_buffer[grid](
+            x.values(),
+            x.offsets(),
+            kernel_output,
+            M=M,
+        )
+    else:
+        triton_jagged_sum_kernel_variable_length_loop_buffer_then_sum[grid](
+            x.values(),
+            x.offsets(),
+            kernel_output,
+            M=M,
+        )
+
+    return kernel_output
+
+
 class Operator(BenchmarkOperator):
 
     DEFAULT_METRICS = ["latency", "accuracy"]
@@ -94,16 +128,17 @@ class Operator(BenchmarkOperator):
 
     def __init__(self, mode: str, device: str, extra_args: Optional[List[str]] = None):
         super().__init__(mode=mode, device=device, extra_args=extra_args)
-        self.sizes = list(range(2, 8, 2)) + list(
-            range(8, 12)
+        self.sizes = list(range(2, 12, 4)) + list(
+            range(12, 23, 3)
         )  # bias towards larger sizes, which are more representative of real-world shapes
 
         args = parse_op_args(self.extra_args)
-        self.B = args.B if args.B is not None else None
-        self.M = args.M if args.M is not None else None
-        self.seqlen = args.seqlen if args.seqlen is not None else None
-        self.sparsity = args.sparsity if args.sparsity is not None else None
+        self.B = args.B
+        self.M = args.M
+        self.seqlen = args.seqlen
+        self.sparsity = args.sparsity
         self.sum_then_buffer = args.sum_then_buffer
+        self.plot_benchmarks = args.plot_benchmarks
 
     @register_benchmark(baseline=True)
     def torch_jagged_sum_no_pad(
@@ -131,7 +166,7 @@ class Operator(BenchmarkOperator):
         )  # sum along ragged dimension (dim == 1)
 
     @register_benchmark()
-    def triton_jagged_sum_no_pad(
+    def triton_jagged_sum_no_pad_simple_fused(
         self, x: torch.Tensor, B: int, M: int, seqlen: int, sparsity: float
     ):
         def _inner():
@@ -139,8 +174,24 @@ class Operator(BenchmarkOperator):
 
         return _inner
 
+    @register_benchmark()
+    def triton_jagged_sum_no_pad_variable_length_loop(
+        self, x: torch.Tensor, B: int, M: int, seqlen: int, sparsity: float
+    ):
+        def _inner():
+            return execute_kernel_variable_length_loop(x, self.sum_then_buffer)
+
+        return _inner
+
     def get_x_val(self, example_inputs):
-        return len(example_inputs[0])
+        if self.B is None:
+            return example_inputs[1]
+        if self.M is None:
+            return example_inputs[2]
+        if self.seqlen is None:
+            return example_inputs[3]
+        if self.sparsity is None:
+            return example_inputs[4]
 
     def get_x_vals(self) -> Tuple[List[int], List[int], List[int], List[float]]:
         B_vals, M_vals, seqlen_vals, sparsity_vals = [], [], [], []
@@ -169,8 +220,7 @@ class Operator(BenchmarkOperator):
 
         if self.seqlen is None:
             seqlen_vals.extend(
-                list(range(100, 1000, 100))
-                + list(range(1000, 10000, 1000))
+                list(range(100, 1000, 100)) + list(range(1000, 20000, 1000))
             )
         else:
             seqlen_vals.extend([self.seqlen])
@@ -187,47 +237,57 @@ class Operator(BenchmarkOperator):
         Generate random nested tensors of shape (B, *, M), where * is the ragged dimension
         """
 
+        def get_size_in_bytes(shape) -> int:
+            num_elements = math.prod(shape)
+            element_size = self.dtype.itemsize
+            return math.floor(num_elements * element_size)
+
         B_vals, M_vals, seqlen_vals, sparsity_vals = self.get_x_vals()
         vals = itertools.product(B_vals, M_vals, seqlen_vals, sparsity_vals)
 
-        for B, M, seqlen, sparsity in vals:
-            tensors = []
+        for B, M, max_seqlen, sparsity in vals:
+            if (
+                get_size_in_bytes((B, M, max_seqlen)) < TENSOR_BYTES_LIMIT
+            ):  # ensure that GPU memory is not exceeded
+                tensors = []
 
-            # greater sparsity --> shorter sequence lengths on ragged dimension
-            seqlen_avg = math.floor(
-                seqlen * (1 - sparsity)
-            )  # average sequence length across all tensors in nested tensor
-            seqlen_margin = math.floor(
-                seqlen * RANDOM_CHOICE_MARGIN
-            )  # use margin to constrain sequence lengths to range [seqlen_avg - seqlen_margin, seqlen_avg + seqlen_margin] to approximate an average sequence length, which correlates with sparsity
+                # greater sparsity --> shorter sequence lengths on ragged dimension
+                seqlen_avg = math.floor(
+                    max_seqlen * (1 - sparsity)
+                )  # average sequence length across all tensors in nested tensor
+                seqlen_margin = math.floor(
+                    max_seqlen * RANDOM_CHOICE_MARGIN
+                )  # use margin to constrain sequence lengths to range [seqlen_avg - seqlen_margin, seqlen_avg + seqlen_margin] to approximate an average sequence length, which correlates with sparsity
 
-            for _ in range(B):
-                seqlen_randint = random.randint(
-                    max(
-                        seqlen_avg - seqlen_margin, 1
-                    ),  # seqlen_randint must be at least 1
-                    min(
-                        seqlen_avg + seqlen_margin, seqlen
-                    ),  # seqlen_randint must not exceed self.seqlen
+                for _ in range(B):
+                    seqlen_randint = random.randint(
+                        max(
+                            seqlen_avg - seqlen_margin, 1
+                        ),  # seqlen_randint must be at least 1
+                        min(
+                            seqlen_avg + seqlen_margin, max_seqlen
+                        ),  # seqlen_randint must not exceed self.seqlen
+                    )
+                    tensor_2d = torch.randn(
+                        (seqlen_randint, M), device=self.device, dtype=self.dtype
+                    )
+                    tensors.append(tensor_2d)
+
+                nt = torch.nested.nested_tensor(
+                    tensors,
+                    layout=torch.jagged,
+                    device=self.device,
+                    dtype=self.dtype,
                 )
-                tensor_2d = torch.randn(
-                    (seqlen_randint, M), device=self.device, dtype=self.dtype
-                )
-                tensors.append(tensor_2d)
 
-            nt = torch.nested.nested_tensor(
-                tensors,
-                layout=torch.jagged,
-                device=self.device,
-                dtype=self.dtype,
-            )
-
-            yield (nt, B, M, seqlen, sparsity)
+                yield (nt, B, M, max_seqlen, sparsity)
 
     def _get_accuracy(self, fn: Callable, baseline_fn: Callable) -> bool:
         output = fn()
         baseline_output = baseline_fn()
-        return torch.allclose(output, baseline_output, atol=ABSOLUTE_TOLERANCE)
+        return torch.allclose(
+            output, baseline_output, atol=ABSOLUTE_TOLERANCE, rtol=RELATIVE_TOLERANCE
+        )
 
     @register_metric()
     def gbps(self, fn_name, example_inputs, metrics: BenchmarkOperatorMetrics):
@@ -238,7 +298,7 @@ class Operator(BenchmarkOperator):
             * GIGABYTES_PER_BYTE
         )
 
-    @register_metric(x_only=True)  # TODO modify!!!!
+    @register_metric(x_only=True)
     def input_shape(
         self, fn_name: str, example_inputs, metrics: BenchmarkOperatorMetrics
     ):
@@ -254,10 +314,98 @@ class Operator(BenchmarkOperator):
     def best_config(
         self, fn_name, example_inputs, metrics: BenchmarkOperatorMetrics
     ) -> str:
+        fn_name_str = str(fn_name).split(".")[1]
+
         if self.sum_then_buffer:
+            if "simple_fused" in fn_name_str:
+                return dump_autotuner_best_config(
+                    triton_jagged_sum_kernel_simple_fused_sum_then_buffer
+                )
             return dump_autotuner_best_config(
-                triton_jagged_sum_kernel_simple_fused_sum_then_buffer
+                triton_jagged_sum_kernel_variable_length_loop_sum_then_buffer
+            )
+        if "simple_fused" in fn_name_str:
+            return dump_autotuner_best_config(
+                triton_jagged_sum_kernel_simple_fused_buffer_then_sum
             )
         return dump_autotuner_best_config(
-            triton_jagged_sum_kernel_simple_fused_buffer_then_sum
+            triton_jagged_sum_kernel_variable_length_loop_buffer_then_sum
         )
+
+    def plot(self):
+        str_B, str_M, str_seqlen, str_sparsity = f"-B-{self.B}", f"-M-{self.M}", f"-seqlen-{self.seqlen}", f"-sparsity-{self.sparsity}"
+        if self.B is None:
+            x_axis = "B"
+            x_log = True
+            params = str_M + str_seqlen + str_sparsity
+        elif self.M is None:
+            x_axis = "M"
+            x_log = True
+            params = str_B + str_seqlen + str_sparsity
+        elif self.seqlen is None:
+            x_axis = "seqlen"
+            x_log = False
+            params = str_B + str_M + str_sparsity
+        else:
+            x_axis = "sparsity"
+            x_log = False
+            params = str_B + str_M + str_seqlen
+
+        line_vals_all = [
+            "torch_jagged_sum_no_pad",
+            "torch_jagged_sum_pad",
+            "triton_jagged_sum_no_pad_simple_fused",
+            "triton_jagged_sum_no_pad_variable_length_loop",
+        ]
+        line_names_all = [
+            "PyTorch jagged sum, no padding",
+            "PyTorch jagged sum, padding",
+            "Triton kernel jagged sum, simple fused",
+            "Triton kernel jagged sum, variable length loop",
+        ]
+        styles_all = [
+            ("blue", "-"),
+            ("red", "-"),
+            ("green", "-"),
+            ("yellow", "-"),
+        ]
+        if self.plot_benchmarks == "all":
+            line_vals, line_names, styles = line_vals_all, line_names_all, styles_all
+        elif self.plot_benchmarks == "torch":
+            line_vals = line_vals_all[:2]
+            line_names = line_names_all[:2]
+            styles = styles_all[:2]
+        else:
+            line_vals = line_vals_all[2:]
+            line_names = line_names_all[2:]
+            styles = styles_all[2:]
+
+        plot_name = f"jagged-sum-perf-var-{x_axis}-xlog-{x_log}" + params
+
+        @triton.testing.perf_report(
+            triton.testing.Benchmark(
+                x_names=["x_axis"],
+                x_vals=self.output.x_vals,
+                line_arg="provider",
+                line_vals=line_vals,
+                line_names=line_names,
+                styles=styles,
+                xlabel=x_axis,
+                ylabel="latency",
+                x_log=x_log,
+                plot_name=plot_name,
+                args={},
+            )
+        )
+        def _plot(x_axis, provider):
+            return self.output.get_y_vals(x_axis, provider, "latency")
+
+        save_path = (
+            os.getcwd()
+            + f"/pytorch/benchmark/torchbenchmark/operators/jagged_sum/jagged_sum_performance/{plot_name}"
+        )
+
+        if not os.path.exists(save_path):
+            os.mkdir(save_path)
+
+        _plot.run(show_plots=True, print_data=True, save_path=save_path)

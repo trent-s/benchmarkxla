@@ -13,6 +13,7 @@ import warnings
 from collections import OrderedDict
 from dataclasses import asdict, dataclass, fields, make_dataclass
 from enum import Enum
+from itertools import product
 from numbers import Number
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
@@ -116,6 +117,32 @@ def do_bench_walltime(fn, warmup=25, rep=100):
     return wall_time_ms
 
 
+def llama_shapes():
+    # batch sizes * seq lengths
+    BS = [2 ** i for i in range(0, 17)]
+    # attn: wqkv, wo; ffn: w13, w2
+    KN = [
+        (4096, 12288),
+        (4096, 4096),
+        (4096, 22016),
+        (11008, 4096),
+
+        (8192, 1280),
+        (1024, 8192),
+        (8192, 7168),
+        (3584, 8192),
+
+        (16384, 2304),
+        (2048, 16384),
+        (16384, 13312),
+        (6656, 16384),
+    ]
+    return [
+        (bs, n, k, None)
+        for bs, (k, n) in product(BS, KN)
+    ]
+
+
 def _find_param_loc(l, key: str) -> int:
     try:
         return l.index(key)
@@ -157,33 +184,33 @@ def dump_autotuner_best_config(kernel: triton.runtime.Autotuner) -> str:
 @dataclass
 class BenchmarkOperatorMetrics:
     # latency in ms
-    latency: Optional[float]
+    latency: Optional[float] = None
     # tflops
-    tflops: Optional[float]
+    tflops: Optional[float] = None
     # speedup over baseline
-    speedup: Optional[float]
+    speedup: Optional[float] = None
     # accuracy over baseline
-    accuracy: Optional[bool]
+    accuracy: Optional[bool] = None
     # wall time
-    walltime: Optional[float]
+    walltime: Optional[float] = None
     # compile time
-    compile_time: Optional[float]
+    compile_time: Optional[float] = None
     # ncu trace file
-    ncu_trace: Optional[str]
+    ncu_trace: Optional[str] = None
     # ncu replay file
-    ncu_rep: Optional[str]
+    ncu_rep: Optional[str] = None
     # kineto trace file
-    kineto_trace: Optional[str]
+    kineto_trace: Optional[str] = None
     # cpu peak memory
-    cpu_peak_mem: Optional[float]
+    cpu_peak_mem: Optional[float] = None
     # gpu peak memory
-    gpu_peak_mem: Optional[float]
+    gpu_peak_mem: Optional[float] = None
     # error message
-    error_msg: Optional[str]
+    error_msg: Optional[str] = None
     # hw roofline
-    hw_roofline: Optional[float]
+    hw_roofline: Optional[float] = None
     # extra metrics
-    extra_metrics: Dict[str, float]
+    extra_metrics: Optional[Dict[str, float]] = None
 
 
 @dataclass
@@ -191,7 +218,7 @@ class BenchmarkOperatorResult:
     # Print the result in a table format
     op_name: str
     metrics: List[str]
-    result: List[Tuple[Number, Dict[str, BenchmarkOperatorMetrics]]]
+    result: List[Tuple[Any, Dict[str, BenchmarkOperatorMetrics]]]
     _result_dict: Optional[Dict[Number, Dict[str, BenchmarkOperatorMetrics]]] = None
 
     def _table(self):
@@ -428,6 +455,11 @@ def parse_args(
             "For example, --input-id 0 runs only the first available input sample." \
             "When used together like --input-id <X> --num-inputs <Y>, start from the input id <X> " \
             "and run <Y> different inputs."
+    )
+    parser.add_argument(
+        "--test-only",
+        action="store_true",
+        help="Run this under test mode, potentially skipping expensive steps like autotuning."
     )
     return parser.parse_known_args(args)
 
@@ -756,19 +788,7 @@ class BenchmarkOperator(metaclass=PostInitProcessor):
                     extra_metrics[metric_name] = None
             return extra_metrics
         metrics = BenchmarkOperatorMetrics(
-            latency=None,
-            tflops=None,
-            speedup=None,
-            accuracy=None,
-            walltime=None,
-            compile_time=None,
-            ncu_trace=None,
-            ncu_rep=None,
             hw_roofline=self.hw_roofline() if "hw_roofline" in self.required_metrics else None,
-            kineto_trace=None,
-            cpu_peak_mem=None,
-            gpu_peak_mem=None,
-            error_msg="",
             extra_metrics=_init_extra_metrics(),
         )
         try:

@@ -26,6 +26,7 @@ class ModelNotFoundError(RuntimeError):
 
 REPO_PATH = Path(os.path.abspath(__file__)).parent.parent
 DATA_PATH = os.path.join(REPO_PATH, "torchbenchmark", "data", ".data")
+SUBMODULE_PATH = REPO_PATH.joinpath("submodules")
 
 
 class add_path:
@@ -41,6 +42,20 @@ class add_path:
         except ValueError:
             pass
 
+class add_ld_library_path:
+    def __init__(self, path):
+        self.path = path
+
+    def __enter__(self):
+        self.os_environ = os.environ.copy()
+        library_path = os.environ.get("LD_LIBRARY_PATH")
+        if not library_path:
+            os.environ["LD_LIBRARY_PATH"] = self.path
+        else:
+            os.environ["LD_LIBRARY_PATH"] = f"{library_path}:{self.path}"
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        os.environ = self.os_environ.copy()
 
 with add_path(str(REPO_PATH)):
     from utils import get_pkg_versions, TORCH_DEPS

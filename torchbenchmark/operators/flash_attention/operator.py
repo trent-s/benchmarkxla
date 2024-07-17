@@ -36,18 +36,34 @@ import math
 import os
 import torch
 import triton  # @manual=//triton:triton
+from torchbenchmark import add_path, SUBMODULE_PATH
 
-from triton.ops.flash_attention import attention as triton_op_FA2
+try:
+    with add_path(SUBMODULE_PATH.joinpath("kernels")):
+        from kernels.flash_attention import attention as triton_op_FA2
+    HAS_KERNELS = True
+except BaseException:
+    HAS_KERNELS = False
+
+from torchbenchmark import add_ld_library_path
 from torchbenchmark.util.kernels.triton_fused_attention import attention as triton_tutorial_FA2
 from torch.nn.attention import SDPBackend, sdpa_kernel
 from torch.nn.functional import scaled_dot_product_attention as sdpa
 
 from typing import Callable, Optional
 
-# [Optional] flash_attn_func
+# [Optional] flash_attn v2
 try:
     from .test_fmha_utils import make_packed_qkv
     from flash_attn.flash_attn_interface import flash_attn_qkvpacked_func as flash_attn_func
+except (ImportError, IOError, AttributeError):
+    pass
+
+# [Optional] flash_attn v3
+try:
+    torch_lib_path = os.path.join(os.path.dirname(__file__), "lib")
+    with add_ld_library_path(torch_lib_path):
+        import flashattn_hopper_cuda
 except (ImportError, IOError, AttributeError):
     pass
 
@@ -173,6 +189,16 @@ class Operator(BenchmarkOperator):
         )
         return fn
 
+    @register_benchmark(enabled=False)
+    def flash_v3(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+    ) -> Callable:
+        fn = lambda: flashattn_hopper_cuda.fwd(q, k, v, None, self.sm_scale, self.causal)
+        return fn
+
     @register_benchmark()
     def triton_tutorial_flash_v2(
         self,
@@ -182,7 +208,7 @@ class Operator(BenchmarkOperator):
     ) -> Callable:
         return lambda: triton_tutorial_FA2(q, k, v, self.causal, self.sm_scale)
 
-    @register_benchmark()
+    @register_benchmark(enabled=HAS_KERNELS)
     def triton_op_flash_v2(
         self,
         q: torch.Tensor,

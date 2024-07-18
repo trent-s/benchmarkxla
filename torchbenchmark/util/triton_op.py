@@ -689,6 +689,8 @@ class BenchmarkOperator(metaclass=PostInitProcessor):
         )
 
     def count_example_inputs(self):
+        if self._num_inputs is not None:
+            return self._num_inputs
         return sum(1 for _ in  self.get_input_iter())
 
     def get_example_inputs(self):
@@ -876,7 +878,8 @@ class BenchmarkOperator(metaclass=PostInitProcessor):
         import sys
         import subprocess
 
-        op_task_args = copy.deepcopy(sys.argv)
+        op_task_args = [] if IS_FBCODE else [sys.executable]
+        op_task_args.extend(copy.deepcopy(sys.argv))
         for override_option in ["--only", "--input-id", "--num-inputs", "--metrics"]:
             op_task_args = _remove_params(
                 op_task_args, _find_param_loc(op_task_args, override_option)

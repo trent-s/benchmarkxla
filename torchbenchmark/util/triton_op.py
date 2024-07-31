@@ -119,6 +119,11 @@ def llama_shapes():
         (1024, 8192),
         (8192, 7168),
         (3584, 8192),
+
+        (16384, 2304),
+        (2048, 16384),
+        (16384, 13312),
+        (6656, 16384),
     ]
     return [
         (bs, n, k, None)
@@ -557,7 +562,7 @@ class BenchmarkOperator(metaclass=PostInitProcessor):
                 del self.example_inputs
                 gc.collect()
         except (KeyboardInterrupt, Exception):
-            warnings.warn("Caught exception, terminating early with partial results", stacklevel=1)
+            logger.warning("Caught exception, terminating early with partial results", exc_info=True)
             raise
         finally:
             self.output = BenchmarkOperatorResult(

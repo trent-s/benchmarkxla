@@ -83,16 +83,22 @@ try:
         # colfax Flash Attention V2 for Hopper
         torch.ops.load_library("//ai_codesign/gen_ai/cutlass-kernels:fmha_forward_lib")
     else:
-        from userbenchmark.triton.utils import load_library
-        load_library("colfax_cutlass/fmha_forward_lib.so")
+        from userbenchmark.triton.loader import load_library
+        load_library("cutlass_kernels/fmha_forward_lib.so")
     colfax_cutlass_fmha = torch.ops.cutlass.fmha_forward
 except (ImportError, IOError, AttributeError):
     colfax_cutlass_fmha = None
 
 # [Optional] ThunderKittens backend
 try:
-    import h100_fwd as tk_fwd
-    import h100_fwd_causal as tk_fwd_causal
+    if not hasattr(torch.version, "git_version"):
+        import h100_fwd as tk_fwd
+        import h100_fwd_causal as tk_fwd_causal
+    else:
+        # causal is not supported right now
+        from userbenchmark.triton.loader import load_library
+        load_library("tk/tk_attn_h100_fwd.so")
+        tk_fwd = torch.ops.tk
 except (ImportError, IOError, AttributeError):
     tk_fwd = None
     tk_fwd_causal = None
@@ -128,6 +134,7 @@ class Operator(BenchmarkOperator):
     def __init__(self, tb_args: argparse.Namespace, extra_args: Optional[List[str]] = None):
         super().__init__(tb_args, extra_args)
         args = parse_op_args(self.extra_args)
+        self.use_cuda_graphs = False
         self.BATCH = args.batch
         self.H = args.n_heads
         self.D_HEAD = args.d_head

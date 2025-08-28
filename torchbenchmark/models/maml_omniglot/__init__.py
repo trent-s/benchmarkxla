@@ -82,7 +82,11 @@ class Model(BenchmarkModel):
         root = str(Path(__file__).parent)
         with torch.serialization.safe_globals(
             [
-                np.core.multiarray._reconstruct,
+                (
+                    np._core.multiarray._reconstruct
+                    if np.__version__ >= "2.0.0"
+                    else np.core.multiarray._reconstruct
+                ),
                 np.ndarray,
                 np.dtype,
                 (
@@ -97,7 +101,9 @@ class Model(BenchmarkModel):
                 ),
             ]
         ):
-            self.meta_inputs = torch.load(f"{root}/batch.pt", weights_only=True)
+            self.meta_inputs = torch.load(
+                f"{root}/batch-20250825.pt", weights_only=True
+            )
         self.meta_inputs = tuple(
             [torch.from_numpy(i).to(self.device) for i in self.meta_inputs]
         )
